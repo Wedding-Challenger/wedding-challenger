@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useBudget } from './context/BudgetContext';
 import Onboarding from './components/Onboarding';
 import WeddingHallCard from './components/WeddingHallCard';
@@ -6,8 +6,12 @@ import SdmeCustomizer from './components/SdmeCustomizer';
 import BudgetBasket from './components/BudgetBasket';
 import SearchTab from './components/SearchTab';
 import HorizontalScroll from './components/HorizontalScroll';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import Terms from './components/Terms';
 import { weddingHalls } from './data/mockData';
 import './App.css';
+
+const POLICY_ROUTES = ['/privacy', '/terms'];
 
 const navLinkClass = ({ isActive }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -68,13 +72,14 @@ function MainContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const isHome = location.pathname === '/';
+  const isPolicyRoute = POLICY_ROUTES.includes(location.pathname);
 
   const handleReset = () => {
     dispatch({ type: 'RESET' });
     navigate('/');
   };
 
-  if (!onboardingComplete) {
+  if (!onboardingComplete && !isPolicyRoute) {
     return <Onboarding />;
   }
 
@@ -123,18 +128,28 @@ function MainContent() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/search" element={<SearchPage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<Terms />} />
             </Routes>
           </div>
 
-          <div className="w-full lg:w-[360px] shrink-0">
-            <BudgetBasket />
-          </div>
+          {!isPolicyRoute && (
+            <div className="w-full lg:w-[360px] shrink-0">
+              <BudgetBasket />
+            </div>
+          )}
         </div>
       </div>
 
       <footer className="bg-white border-t border-warm-beige/30 py-8 mt-16">
-        <div className="max-w-7xl mx-auto px-6 text-center text-sm text-charcoal/30">
+        <div className="max-w-7xl mx-auto px-6 text-center text-sm text-charcoal/30 space-y-3">
           <p>웨딩첼린저 — 예산에 맞는 완벽한 웨딩 플래닝</p>
+          <nav className="flex items-center justify-center gap-4 text-charcoal/50">
+            <Link to="/privacy" className="hover:text-deep-rose transition-colors">개인정보처리방침</Link>
+            <span className="text-charcoal/20">|</span>
+            <Link to="/terms" className="hover:text-deep-rose transition-colors">이용약관</Link>
+          </nav>
+          <p className="text-charcoal/20 text-xs">© 2026 웨딩첼린저. All rights reserved.</p>
         </div>
       </footer>
     </div>
