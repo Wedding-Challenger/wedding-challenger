@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wedding-challenger.com/sitemap.xml
