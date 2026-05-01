@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"git status 2>&1\",\"description\":\"Check git status\"}",
+  "error": "Exit code 128\nfatal: (현재 폴더 또는 상위 폴더 중 일부가) 깃 저장소가 아닙니다: .git",
+  "timestamp": "2026-05-01T09:19:19.199Z",
+  "retry_count": 2
+}
