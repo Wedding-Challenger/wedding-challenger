@@ -1,23 +1,7 @@
+import { useState, useEffect } from 'react';
 import { useBudget } from '../context/BudgetContext';
-import { studios as studiosMock, dresses as dressesMock, makeups as makeupsMock, snaps as snapsMock, rings as ringsMock, bouquets as bouquetsMock, hanboks as hanboksMock } from '../data/mockData';
-import { getVendors, adaptVendorFromApi } from '../services/api';
-import { useApiList } from '../hooks/useApiList';
+import { getVendors } from '../api/vendors';
 import HorizontalScroll from './HorizontalScroll';
-
-function makeVendorFetcher(category) {
-  return async () => {
-    const page = await getVendors(category);
-    return page.items.map(adaptVendorFromApi);
-  };
-}
-
-const studiosFetcher = makeVendorFetcher('STUDIO');
-const dressesFetcher = makeVendorFetcher('DRESS');
-const makeupsFetcher = makeVendorFetcher('MAKEUP');
-const snapsFetcher = makeVendorFetcher('SNAP');
-const ringsFetcher = makeVendorFetcher('RING');
-const bouquetsFetcher = makeVendorFetcher('BOUQUET');
-const hanboksFetcher = makeVendorFetcher('HANBOK');
 
 function formatPrice(n) {
   if (n >= 10000) return (n / 10000).toFixed(0) + '만';
@@ -83,13 +67,17 @@ export default function SdmeCustomizer() {
     dispatch,
   } = useBudget();
 
-  const { data: studios = studiosMock } = useApiList(studiosFetcher, studiosMock);
-  const { data: dresses = dressesMock } = useApiList(dressesFetcher, dressesMock);
-  const { data: makeups = makeupsMock } = useApiList(makeupsFetcher, makeupsMock);
-  const { data: snaps = snapsMock } = useApiList(snapsFetcher, snapsMock);
-  const { data: rings = ringsMock } = useApiList(ringsFetcher, ringsMock);
-  const { data: bouquets = bouquetsMock } = useApiList(bouquetsFetcher, bouquetsMock);
-  const { data: hanboks = hanboksMock } = useApiList(hanboksFetcher, hanboksMock);
+  const [vendors, setVendors] = useState({});
+
+  useEffect(() => {
+    const categories = ['studio', 'dress', 'makeup', 'snap', 'ring', 'bouquet', 'hanbok'];
+    Promise.all(categories.map(getVendors))
+      .then((results) => {
+        const map = Object.fromEntries(categories.map((c, i) => [c, results[i]]));
+        setVendors(map);
+      })
+      .catch(console.error);
+  }, []);
 
   const handleSelect = (type, item, currentSelected) => {
     if (currentSelected?.id === item.id) {
@@ -120,7 +108,7 @@ export default function SdmeCustomizer() {
             스튜디오
           </h3>
           <HorizontalScroll>
-            {studios.map((s) => (
+            {(vendors.studio ?? []).map((s) => (
               <div key={s.id} className="min-w-[250px] max-w-[250px] shrink-0">
                 <VendorCard item={s} isSelected={selectedStudio?.id === s.id} onToggle={() => handleSelect('STUDIO', s, selectedStudio)} />
               </div>
@@ -137,7 +125,7 @@ export default function SdmeCustomizer() {
             드레스
           </h3>
           <HorizontalScroll>
-            {dresses.map((d) => (
+            {(vendors.dress ?? []).map((d) => (
               <div key={d.id} className="min-w-[250px] max-w-[250px] shrink-0">
                 <VendorCard item={d} isSelected={selectedDress?.id === d.id} onToggle={() => handleSelect('DRESS', d, selectedDress)} />
               </div>
@@ -154,7 +142,7 @@ export default function SdmeCustomizer() {
             메이크업
           </h3>
           <HorizontalScroll>
-            {makeups.map((m) => (
+            {(vendors.makeup ?? []).map((m) => (
               <div key={m.id} className="min-w-[250px] max-w-[250px] shrink-0">
                 <VendorCard item={m} isSelected={selectedMakeup?.id === m.id} onToggle={() => handleSelect('MAKEUP', m, selectedMakeup)} />
               </div>
@@ -171,7 +159,7 @@ export default function SdmeCustomizer() {
             스냅 촬영
           </h3>
           <HorizontalScroll>
-            {snaps.map((s) => (
+            {(vendors.snap ?? []).map((s) => (
               <div key={s.id} className="min-w-[250px] max-w-[250px] shrink-0">
                 <VendorCard item={s} isSelected={selectedSnap?.id === s.id} onToggle={() => handleSelect('SNAP', s, selectedSnap)} />
               </div>
@@ -188,7 +176,7 @@ export default function SdmeCustomizer() {
             반지
           </h3>
           <HorizontalScroll>
-            {rings.map((r) => (
+            {(vendors.ring ?? []).map((r) => (
               <div key={r.id} className="min-w-[250px] max-w-[250px] shrink-0">
                 <VendorCard item={r} isSelected={selectedRing?.id === r.id} onToggle={() => handleSelect('RING', r, selectedRing)} />
               </div>
@@ -205,7 +193,7 @@ export default function SdmeCustomizer() {
             부케
           </h3>
           <HorizontalScroll>
-            {bouquets.map((b) => (
+            {(vendors.bouquet ?? []).map((b) => (
               <div key={b.id} className="min-w-[250px] max-w-[250px] shrink-0">
                 <VendorCard item={b} isSelected={selectedBouquet?.id === b.id} onToggle={() => handleSelect('BOUQUET', b, selectedBouquet)} />
               </div>
@@ -222,7 +210,7 @@ export default function SdmeCustomizer() {
             혼주한복
           </h3>
           <HorizontalScroll>
-            {hanboks.map((h) => (
+            {(vendors.hanbok ?? []).map((h) => (
               <div key={h.id} className="min-w-[250px] max-w-[250px] shrink-0">
                 <VendorCard item={h} isSelected={selectedHanbok?.id === h.id} onToggle={() => handleSelect('HANBOK', h, selectedHanbok)} />
               </div>
