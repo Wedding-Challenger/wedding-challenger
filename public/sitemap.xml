@@ -1,23 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://wedding-challenger.com/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://wedding-challenger.com/search</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://wedding-challenger.com/privacy</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://wedding-challenger.com/terms</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
+  <url><loc>https://wedding-challenger.com/</loc><priority>1.0</priority></url>
+  <url><loc>https://wedding-challenger.com/about</loc><priority>0.8</priority></url>
+  <url><loc>https://wedding-challenger.com/guide</loc><priority>0.8</priority></url>
+  <url><loc>https://wedding-challenger.com/checklist</loc><priority>0.8</priority></url>
+  <url><loc>https://wedding-challenger.com/calc</loc><priority>0.6</priority></url>
+  <url><loc>https://wedding-challenger.com/privacy</loc><priority>0.4</priority></url>
+  <url><loc>https://wedding-challenger.com/terms</loc><priority>0.4</priority></url>
 </urlset>

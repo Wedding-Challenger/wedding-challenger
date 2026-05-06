@@ -1,6 +1,23 @@
 import { useBudget } from '../context/BudgetContext';
-import { studios, dresses, makeups, snaps, rings, bouquets, hanboks } from '../data/mockData';
+import { studios as studiosMock, dresses as dressesMock, makeups as makeupsMock, snaps as snapsMock, rings as ringsMock, bouquets as bouquetsMock, hanboks as hanboksMock } from '../data/mockData';
+import { getVendors, adaptVendorFromApi } from '../services/api';
+import { useApiList } from '../hooks/useApiList';
 import HorizontalScroll from './HorizontalScroll';
+
+function makeVendorFetcher(category) {
+  return async () => {
+    const page = await getVendors(category);
+    return page.items.map(adaptVendorFromApi);
+  };
+}
+
+const studiosFetcher = makeVendorFetcher('STUDIO');
+const dressesFetcher = makeVendorFetcher('DRESS');
+const makeupsFetcher = makeVendorFetcher('MAKEUP');
+const snapsFetcher = makeVendorFetcher('SNAP');
+const ringsFetcher = makeVendorFetcher('RING');
+const bouquetsFetcher = makeVendorFetcher('BOUQUET');
+const hanboksFetcher = makeVendorFetcher('HANBOK');
 
 function formatPrice(n) {
   if (n >= 10000) return (n / 10000).toFixed(0) + '만';
@@ -65,6 +82,14 @@ export default function SdmeCustomizer() {
     selectedStudio, selectedDress, selectedMakeup, selectedSnap, selectedRing, selectedBouquet, selectedHanbok,
     dispatch,
   } = useBudget();
+
+  const { data: studios = studiosMock } = useApiList(studiosFetcher, studiosMock);
+  const { data: dresses = dressesMock } = useApiList(dressesFetcher, dressesMock);
+  const { data: makeups = makeupsMock } = useApiList(makeupsFetcher, makeupsMock);
+  const { data: snaps = snapsMock } = useApiList(snapsFetcher, snapsMock);
+  const { data: rings = ringsMock } = useApiList(ringsFetcher, ringsMock);
+  const { data: bouquets = bouquetsMock } = useApiList(bouquetsFetcher, bouquetsMock);
+  const { data: hanboks = hanboksMock } = useApiList(hanboksFetcher, hanboksMock);
 
   const handleSelect = (type, item, currentSelected) => {
     if (currentSelected?.id === item.id) {

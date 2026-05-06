@@ -1,3 +1,4 @@
+// PIPA 적합성 검토 필요 — 김경수 P0 게이트 (consent-banner-copy.ko.md 와 정합)
 export default function PrivacyPolicy() {
   return (
     <article className="prose prose-sm max-w-none text-charcoal/80 leading-relaxed space-y-6">

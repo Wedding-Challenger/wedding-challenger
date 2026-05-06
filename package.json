@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:ssg": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -25,6 +26,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "tailwindcss": "^4.2.2",
-    "vite": "^8.0.1"
+    "vite": "^8.0.1",
+    "vite-ssg": "^28.3.0"
   }
 }
