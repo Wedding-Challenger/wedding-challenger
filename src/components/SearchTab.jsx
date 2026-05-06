@@ -1,24 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useBudget } from '../context/BudgetContext';
-import { weddingHalls as weddingHallsMock, studios as studiosMock, dresses as dressesMock, makeups as makeupsMock, snaps as snapsMock, rings as ringsMock, bouquets as bouquetsMock, hanboks as hanboksMock } from '../data/mockData';
-import { getWeddingHalls, getVendors, adaptHallFromApi, adaptVendorFromApi } from '../services/api';
-import { useApiList } from '../hooks/useApiList';
-
-function makeVendorFetcher(category) {
-  return async () => {
-    const page = await getVendors(category);
-    return page.items.map(adaptVendorFromApi);
-  };
-}
-
-const hallsFetcher = getWeddingHalls;
-const studiosFetcher = makeVendorFetcher('STUDIO');
-const dressesFetcher = makeVendorFetcher('DRESS');
-const makeupsFetcher = makeVendorFetcher('MAKEUP');
-const snapsFetcher = makeVendorFetcher('SNAP');
-const ringsFetcher = makeVendorFetcher('RING');
-const bouquetsFetcher = makeVendorFetcher('BOUQUET');
-const hanboksFetcher = makeVendorFetcher('HANBOK');
+import { getHalls } from '../api/halls';
+import { getVendors } from '../api/vendors';
 
 function formatPrice(n) {
   if (n >= 10000) return (n / 10000).toFixed(0) + '만';
@@ -37,8 +20,8 @@ const CATEGORIES = [
   { key: 'hanbok', label: '혼주한복', icon: '👘' },
 ];
 
-function buildAllItems(guestCount, weddingHalls, studios, dresses, makeups, snaps, rings, bouquets, hanboks) {
-  const halls = weddingHalls.map((h) => ({
+function buildAllItems(halls, vendors, guestCount) {
+  const hallItems = halls.map((h) => ({
     ...h,
     category: 'hall',
     categoryLabel: '웨딩홀',
@@ -47,63 +30,20 @@ function buildAllItems(guestCount, weddingHalls, studios, dresses, makeups, snap
     priceLabel: `${guestCount}명 기준`,
     selectType: 'HALL',
   }));
-  const studioItems = studios.map((s) => ({
-    ...s,
-    categoryLabel: '스튜디오',
-    icon: '📸',
-    displayPrice: s.price,
-    priceLabel: '',
-    selectType: 'STUDIO',
-  }));
-  const dressItems = dresses.map((d) => ({
-    ...d,
-    categoryLabel: '드레스',
-    icon: '👗',
-    displayPrice: d.price,
-    priceLabel: '',
-    selectType: 'DRESS',
-  }));
-  const makeupItems = makeups.map((m) => ({
-    ...m,
-    categoryLabel: '메이크업',
-    icon: '💄',
-    displayPrice: m.price,
-    priceLabel: '',
-    selectType: 'MAKEUP',
-  }));
-  const snapItems = snaps.map((s) => ({
-    ...s,
-    categoryLabel: '스냅',
-    icon: '📷',
-    displayPrice: s.price,
-    priceLabel: '',
-    selectType: 'SNAP',
-  }));
-  const ringItems = rings.map((r) => ({
-    ...r,
-    categoryLabel: '반지',
-    icon: '💍',
-    displayPrice: r.price,
-    priceLabel: '',
-    selectType: 'RING',
-  }));
-  const bouquetItems = bouquets.map((b) => ({
-    ...b,
-    categoryLabel: '부케',
-    icon: '💐',
-    displayPrice: b.price,
-    priceLabel: '',
-    selectType: 'BOUQUET',
-  }));
-  const hanbokItems = hanboks.map((h) => ({
-    ...h,
-    categoryLabel: '혼주한복',
-    icon: '👘',
-    displayPrice: h.price,
-    priceLabel: '',
-    selectType: 'HANBOK',
-  }));
-  return [...halls, ...studioItems, ...dressItems, ...makeupItems, ...snapItems, ...ringItems, ...bouquetItems, ...hanbokItems];
+  const vendorMeta = {
+    studio:  { categoryLabel: '스튜디오', icon: '📸', selectType: 'STUDIO' },
+    dress:   { categoryLabel: '드레스',   icon: '👗', selectType: 'DRESS'  },
+    makeup:  { categoryLabel: '메이크업', icon: '💄', selectType: 'MAKEUP' },
+    snap:    { categoryLabel: '스냅',     icon: '📷', selectType: 'SNAP'   },
+    ring:    { categoryLabel: '반지',     icon: '💍', selectType: 'RING'   },
+    bouquet: { categoryLabel: '부케',     icon: '💐', selectType: 'BOUQUET'},
+    hanbok:  { categoryLabel: '혼주한복', icon: '👘', selectType: 'HANBOK' },
+  };
+  const vendorItems = vendors.map((v) => {
+    const meta = vendorMeta[v.category] ?? { categoryLabel: v.category, icon: '🏢', selectType: v.category.toUpperCase() };
+    return { ...v, ...meta, displayPrice: v.price, priceLabel: '' };
+  });
+  return [...hallItems, ...vendorItems];
 }
 
 function isItemSelected(item, state) {
@@ -125,25 +65,20 @@ export default function SearchTab() {
   const { dispatch, guestCount } = budget;
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
+  const [halls, setHalls] = useState([]);
+  const [vendors, setVendors] = useState([]);
 
-  const { data: rawHalls = weddingHallsMock } = useApiList(hallsFetcher, weddingHallsMock);
-  const { data: studios = studiosMock } = useApiList(studiosFetcher, studiosMock);
-  const { data: dresses = dressesMock } = useApiList(dressesFetcher, dressesMock);
-  const { data: makeups = makeupsMock } = useApiList(makeupsFetcher, makeupsMock);
-  const { data: snaps = snapsMock } = useApiList(snapsFetcher, snapsMock);
-  const { data: rings = ringsMock } = useApiList(ringsFetcher, ringsMock);
-  const { data: bouquets = bouquetsMock } = useApiList(bouquetsFetcher, bouquetsMock);
-  const { data: hanboks = hanboksMock } = useApiList(hanboksFetcher, hanboksMock);
+  useEffect(() => {
+    Promise.all([
+      getHalls(),
+      getVendors(),
+    ]).then(([h, v]) => {
+      setHalls(h);
+      setVendors(v);
+    }).catch(console.error);
+  }, []);
 
-  const weddingHalls = useMemo(
-    () => rawHalls.map((h) => (h.id && String(h.id).startsWith('wh') ? h : adaptHallFromApi(h))),
-    [rawHalls]
-  );
-
-  const allItems = useMemo(
-    () => buildAllItems(guestCount, weddingHalls, studios, dresses, makeups, snaps, rings, bouquets, hanboks),
-    [guestCount, weddingHalls, studios, dresses, makeups, snaps, rings, bouquets, hanboks]
-  );
+  const allItems = useMemo(() => buildAllItems(halls, vendors, guestCount), [halls, vendors, guestCount]);
 
   const filtered = useMemo(() => {
     return allItems.filter((item) => {
