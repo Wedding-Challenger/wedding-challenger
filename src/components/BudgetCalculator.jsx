@@ -6,18 +6,15 @@ import SdmeCustomizer from './SdmeCustomizer';
 import BudgetBasket from './BudgetBasket';
 import HorizontalScroll from './HorizontalScroll';
 import AdSlot from './AdSlot';
-import { weddingHalls as weddingHallsMock } from '../data/mockData';
-import { getWeddingHalls, adaptHallFromApi } from '../services/api';
-import { useApiList } from '../hooks/useApiList';
+import { useState, useEffect } from 'react';
+import { getHalls } from '../api/halls';
 
 function HallSection() {
-  const { data, loading, error } = useApiList(getWeddingHalls, weddingHallsMock);
-  const weddingHalls = (data ?? []).map((h) =>
-    h.id && String(h.id).startsWith('wh') ? h : adaptHallFromApi(h)
-  );
+  const [weddingHalls, setWeddingHalls] = useState([]);
 
-  if (loading) return <div className="text-center py-12 text-charcoal/40">불러오는 중...</div>;
-  if (error) return <div className="text-center py-12 text-deep-rose">데이터를 불러올 수 없습니다.</div>;
+  useEffect(() => {
+    getHalls().then(setWeddingHalls).catch(console.error);
+  }, []);
 
   return (
     <section id="halls">

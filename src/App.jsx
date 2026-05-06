@@ -1,6 +1,7 @@
 import { Routes, Route, NavLink, Link } from 'react-router-dom';
 import { useState } from 'react';
-import ConsentBanner, { getConsent } from './components/ConsentBanner';
+import ConsentBanner from './components/ConsentBanner';
+import { getConsent } from './lib/consent';
 import AdSenseLoader from './components/AdSenseLoader';
 import AdSlot from './components/AdSlot';
 import PublicLanding from './components/PublicLanding';

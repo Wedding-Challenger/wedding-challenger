@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { weddingHalls, studios, dresses, makeups, snaps } from '../data/mockData';
+import { getHalls } from '../api/halls';
+import { getVendors } from '../api/vendors';
 import AdSlot from './AdSlot';
 
 function CardItem({ image, name, price, description, badge }) {
@@ -44,6 +46,21 @@ function CategoryRow({ icon, title, subtitle, children }) {
 }
 
 export default function PublicLanding({ adsEnabled }) {
+  const [halls, setHalls] = useState([]);
+  const [vendors, setVendors] = useState({});
+
+  useEffect(() => {
+    getHalls().then(setHalls).catch(console.error);
+    Promise.all(['studio', 'dress', 'makeup', 'snap'].map(getVendors))
+      .then(([studio, dress, makeup, snap]) => setVendors({ studio, dress, makeup, snap }))
+      .catch(console.error);
+  }, []);
+
+  const studios = vendors.studio ?? [];
+  const dresses = vendors.dress ?? [];
+  const makeups = vendors.makeup ?? [];
+  const snaps = vendors.snap ?? [];
+
   return (
     <>
       {/* Hero */}
@@ -68,7 +85,7 @@ export default function PublicLanding({ adsEnabled }) {
       {/* Catalog */}
       <section className="max-w-7xl mx-auto px-6 py-12">
         <CategoryRow icon="🏛" title="웨딩홀" subtitle="예식장 비교">
-          {weddingHalls.map((h) => (
+          {halls.map((h) => (
             <Link to="/calc" key={h.id}>
               <CardItem
                 image={h.image}
