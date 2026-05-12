@@ -17,7 +17,7 @@ export default function BudgetBasket() {
     selectedHall, selectedStudio, selectedDress, selectedMakeup, selectedSnap, selectedRing, selectedBouquet, selectedHanbok,
     includeStudio, includeDress, includeMakeup, includeSnap, includeRing, includeBouquet, includeHanbok,
     getHallCost, getStudioCost, getDressCost, getMakeupCost, getSnapCost, getRingCost, getBouquetCost, getHanbokCost,
-    getTotalCost, getRemainingBudget, getBudgetPercent, isOverBudget,
+    getTotalCost, getTotalCostRange, getRemainingBudget, getBudgetPercent, isOverBudget,
   } = useBudget();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -113,6 +113,36 @@ export default function BudgetBasket() {
                 <span className="font-semibold text-charcoal">총 견적</span>
                 <span className={`text-xl font-bold ${overBudget ? 'text-red-500' : 'text-charcoal'}`}>{formatFullWon(getTotalCost())}</span>
               </div>
+
+              {/* Range display */}
+              {selectedHall && (() => {
+                const range = getTotalCostRange();
+                if (range.min === range.max) return null;
+                const rangeMin = range.min;
+                const rangeMax = range.max;
+                const current = getTotalCost();
+                const fillPct = rangeMax > rangeMin ? Math.round(((current - rangeMin) / (rangeMax - rangeMin)) * 100) : 50;
+                return (
+                  <div className="bg-warm-beige/20 rounded-xl p-3 space-y-2">
+                    <div className="flex justify-between text-xs text-charcoal/50">
+                      <span>예상 견적 범위</span>
+                      <span className="font-semibold text-charcoal/70">{formatWon(rangeMin)} ~ {formatWon(rangeMax)}원</span>
+                    </div>
+                    <div className="relative h-2 bg-warm-beige/50 rounded-full overflow-visible">
+                      <div className="absolute inset-y-0 left-0 bg-soft-gold/30 rounded-full" style={{ width: '100%' }} />
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-soft-gold rounded-full shadow-sm border-2 border-white"
+                        style={{ left: `calc(${fillPct}% - 6px)` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-charcoal/40">
+                      <span>최소 {formatWon(rangeMin)}원</span>
+                      <span>최대 {formatWon(rangeMax)}원</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className={`flex justify-between p-3 rounded-xl ${overBudget ? 'bg-red-50' : 'bg-sage/10'}`}>
                 <span className="text-sm text-charcoal/60">{overBudget ? '초과 금액' : '잔여 예산'}</span>
                 <span className={`text-sm font-bold ${overBudget ? 'text-red-500' : 'text-sage'}`}>

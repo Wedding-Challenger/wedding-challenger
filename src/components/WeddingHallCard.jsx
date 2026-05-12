@@ -10,6 +10,11 @@ export default function WeddingHallCard({ hall }) {
   const isSelected = selectedHall?.id === hall.id;
   const totalCost = hall.pricePerPerson * guestCount;
 
+  const pb = hall.priceBreakdown;
+  const totalMin = pb ? pb.food.min * guestCount + pb.rent.min + pb.deco.min : totalCost;
+  const totalMax = pb ? pb.food.max * guestCount + pb.rent.max + pb.deco.max : totalCost;
+  const hasRange = totalMin !== totalMax;
+
   const handleToggle = () => {
     if (isSelected) {
       dispatch({ type: 'DESELECT_HALL' });
@@ -62,15 +67,35 @@ export default function WeddingHallCard({ hall }) {
           ))}
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-warm-beige/30">
-          <div>
-            <p className="text-xs text-charcoal/40">1인당</p>
-            <p className="font-bold text-soft-gold">{formatPrice(hall.pricePerPerson)}원</p>
+        <div className="pt-2 border-t border-warm-beige/30 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-charcoal/40">식대/인</p>
+              <p className="font-bold text-soft-gold">
+                {pb && pb.food.min !== pb.food.max
+                  ? `${formatPrice(pb.food.min)}~${formatPrice(pb.food.max)}원`
+                  : `${formatPrice(hall.pricePerPerson)}원`}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-charcoal/40">{guestCount}명 예상 총 견적</p>
+              <p className="font-bold text-charcoal">
+                {hasRange
+                  ? <><span className="text-charcoal/50">{formatPrice(totalMin)}</span>~{formatPrice(totalMax)}원</>
+                  : `${formatPrice(totalMin)}원`}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-charcoal/40">{guestCount}명 기준 예상</p>
-            <p className="font-bold text-charcoal">{formatPrice(totalCost)}원</p>
-          </div>
+          {pb && (pb.rent.min > 0 || pb.deco.min > 0) && (
+            <div className="flex gap-2 text-[11px] text-charcoal/40">
+              {pb.rent.min > 0 && (
+                <span>대관료 {pb.rent.min === pb.rent.max ? formatPrice(pb.rent.min) : `${formatPrice(pb.rent.min)}~${formatPrice(pb.rent.max)}`}원</span>
+              )}
+              {pb.deco.min > 0 && (
+                <span>· 데코 {pb.deco.min === pb.deco.max ? formatPrice(pb.deco.min) : `${formatPrice(pb.deco.min)}~${formatPrice(pb.deco.max)}`}원</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between text-xs text-charcoal/50">

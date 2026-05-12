@@ -104,6 +104,23 @@ export function BudgetProvider({ children }) {
   const getHanbokCost = () => state.includeHanbok && state.selectedHanbok ? state.selectedHanbok.price : 0;
 
   const getTotalCost = () => getHallCost() + getStudioCost() + getDressCost() + getMakeupCost() + getSnapCost() + getRingCost() + getBouquetCost() + getHanbokCost();
+
+  const getHallCostRange = () => {
+    if (!state.selectedHall) return { min: 0, max: 0 };
+    const pb = state.selectedHall.priceBreakdown;
+    if (!pb) { const c = getHallCost(); return { min: c, max: c }; }
+    return {
+      min: pb.food.min * state.guestCount + pb.rent.min + pb.deco.min,
+      max: pb.food.max * state.guestCount + pb.rent.max + pb.deco.max,
+    };
+  };
+
+  const getTotalCostRange = () => {
+    const hall = getHallCostRange();
+    const vendors = getStudioCost() + getDressCost() + getMakeupCost() + getSnapCost() + getRingCost() + getBouquetCost() + getHanbokCost();
+    return { min: hall.min + vendors, max: hall.max + vendors };
+  };
+
   const getRemainingBudget = () => state.totalBudget - getTotalCost();
   const getBudgetPercent = () => state.totalBudget > 0 ? Math.min((getTotalCost() / state.totalBudget) * 100, 100) : 0;
   const isOverBudget = () => getTotalCost() > state.totalBudget;
@@ -120,6 +137,8 @@ export function BudgetProvider({ children }) {
     getBouquetCost,
     getHanbokCost,
     getTotalCost,
+    getHallCostRange,
+    getTotalCostRange,
     getRemainingBudget,
     getBudgetPercent,
     isOverBudget,
