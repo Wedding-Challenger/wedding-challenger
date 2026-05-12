@@ -5,12 +5,14 @@ import WeddingHallCard from './WeddingHallCard';
 import SdmeCustomizer from './SdmeCustomizer';
 import BudgetBasket from './BudgetBasket';
 import HorizontalScroll from './HorizontalScroll';
+import HallRangeCompare from './HallRangeCompare';
 import AdSlot from './AdSlot';
 import { useState, useEffect } from 'react';
 import { getHalls } from '../api/halls';
 
 function HallSection() {
   const [weddingHalls, setWeddingHalls] = useState([]);
+  const [viewMode, setViewMode] = useState('card');
 
   useEffect(() => {
     getHalls().then(setWeddingHalls).catch(console.error);
@@ -18,20 +20,41 @@ function HallSection() {
 
   return (
     <section id="halls">
-      <div className="flex items-center gap-3 mb-6">
-        <span className="w-10 h-10 bg-soft-gold/10 rounded-xl flex items-center justify-center text-lg">🏛</span>
-        <div>
-          <h2 className="text-xl font-bold text-charcoal">웨딩홀 선택</h2>
-          <p className="text-sm text-charcoal/40">마음에 드는 웨딩홀을 선택해 보세요</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <span className="w-10 h-10 bg-soft-gold/10 rounded-xl flex items-center justify-center text-lg">🏛</span>
+          <div>
+            <h2 className="text-xl font-bold text-charcoal">웨딩홀 선택</h2>
+            <p className="text-sm text-charcoal/40">마음에 드는 웨딩홀을 선택해 보세요</p>
+          </div>
+        </div>
+        <div className="flex items-center bg-warm-beige/20 rounded-xl p-1 gap-1">
+          <button
+            onClick={() => setViewMode('card')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${viewMode === 'card' ? 'bg-white text-charcoal shadow-sm' : 'text-charcoal/40 hover:text-charcoal'}`}
+          >
+            카드
+          </button>
+          <button
+            onClick={() => setViewMode('compare')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${viewMode === 'compare' ? 'bg-white text-charcoal shadow-sm' : 'text-charcoal/40 hover:text-charcoal'}`}
+          >
+            범위 비교
+          </button>
         </div>
       </div>
-      <HorizontalScroll>
-        {weddingHalls.map((hall) => (
-          <div key={hall.id} className="min-w-[300px] max-w-[300px] shrink-0">
-            <WeddingHallCard hall={hall} />
-          </div>
-        ))}
-      </HorizontalScroll>
+
+      {viewMode === 'card' ? (
+        <HorizontalScroll>
+          {weddingHalls.map((hall) => (
+            <div key={hall.id} className="min-w-[300px] max-w-[300px] shrink-0">
+              <WeddingHallCard hall={hall} />
+            </div>
+          ))}
+        </HorizontalScroll>
+      ) : (
+        <HallRangeCompare />
+      )}
     </section>
   );
 }
