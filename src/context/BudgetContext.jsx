@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer } from 'react';
+import { STUDIO_STATS, DRESS_STATS, MAKEUP_STATS, getRange } from '../data/sdmeStats';
 
 const BudgetContext = createContext();
 
@@ -16,6 +17,10 @@ const initialState = {
   selectedRing: null,
   selectedBouquet: null,
   selectedHanbok: null,
+  // SdmeRange selections { region: string, pct: 'p10'|'p25'|'mid'|'p75'|'p90' }
+  studioSel: null,
+  dressSel: null,
+  makeupSel: null,
   // Toggles
   includeStudio: true,
   includeDress: true,
@@ -38,6 +43,18 @@ function budgetReducer(state, action) {
       return { ...state, selectedHall: action.payload };
     case 'DESELECT_HALL':
       return { ...state, selectedHall: null };
+    case 'SET_STUDIO_SEL':
+      return { ...state, studioSel: action.payload, selectedStudio: null };
+    case 'CLEAR_STUDIO_SEL':
+      return { ...state, studioSel: null };
+    case 'SET_DRESS_SEL':
+      return { ...state, dressSel: action.payload, selectedDress: null };
+    case 'CLEAR_DRESS_SEL':
+      return { ...state, dressSel: null };
+    case 'SET_MAKEUP_SEL':
+      return { ...state, makeupSel: action.payload, selectedMakeup: null };
+    case 'CLEAR_MAKEUP_SEL':
+      return { ...state, makeupSel: null };
     case 'SELECT_STUDIO':
       return { ...state, selectedStudio: action.payload };
     case 'DESELECT_STUDIO':
@@ -95,9 +112,37 @@ export function BudgetProvider({ children }) {
     return state.selectedHall.pricePerPerson * state.guestCount;
   };
 
-  const getStudioCost = () => state.includeStudio && state.selectedStudio ? state.selectedStudio.price : 0;
-  const getDressCost = () => state.includeDress && state.selectedDress ? state.selectedDress.price : 0;
-  const getMakeupCost = () => state.includeMakeup && state.selectedMakeup ? state.selectedMakeup.price : 0;
+  const getStudioCost = () => {
+    if (state.includeStudio && state.studioSel?.pct)
+      return STUDIO_STATS[state.studioSel.region]?.[state.studioSel.pct] ?? 0;
+    return state.includeStudio && state.selectedStudio ? state.selectedStudio.price : 0;
+  };
+  const getDressCost = () => {
+    if (state.includeDress && state.dressSel?.pct)
+      return DRESS_STATS[state.dressSel.region]?.[state.dressSel.pct] ?? 0;
+    return state.includeDress && state.selectedDress ? state.selectedDress.price : 0;
+  };
+  const getMakeupCost = () => {
+    if (state.includeMakeup && state.makeupSel?.pct)
+      return MAKEUP_STATS[state.makeupSel.region]?.[state.makeupSel.pct] ?? 0;
+    return state.includeMakeup && state.selectedMakeup ? state.selectedMakeup.price : 0;
+  };
+
+  const getStudioCostRange = () => {
+    if (state.includeStudio && state.studioSel)
+      return getRange(STUDIO_STATS, state.studioSel.region);
+    const c = getStudioCost(); return { min: c, max: c };
+  };
+  const getDressCostRange = () => {
+    if (state.includeDress && state.dressSel)
+      return getRange(DRESS_STATS, state.dressSel.region);
+    const c = getDressCost(); return { min: c, max: c };
+  };
+  const getMakeupCostRange = () => {
+    if (state.includeMakeup && state.makeupSel)
+      return getRange(MAKEUP_STATS, state.makeupSel.region);
+    const c = getMakeupCost(); return { min: c, max: c };
+  };
   const getSnapCost = () => state.includeSnap && state.selectedSnap ? state.selectedSnap.price : 0;
   const getRingCost = () => state.includeRing && state.selectedRing ? state.selectedRing.price : 0;
   const getBouquetCost = () => state.includeBouquet && state.selectedBouquet ? state.selectedBouquet.price : 0;
@@ -117,8 +162,14 @@ export function BudgetProvider({ children }) {
 
   const getTotalCostRange = () => {
     const hall = getHallCostRange();
-    const vendors = getStudioCost() + getDressCost() + getMakeupCost() + getSnapCost() + getRingCost() + getBouquetCost() + getHanbokCost();
-    return { min: hall.min + vendors, max: hall.max + vendors };
+    const studio = getStudioCostRange();
+    const dress = getDressCostRange();
+    const makeup = getMakeupCostRange();
+    const others = getSnapCost() + getRingCost() + getBouquetCost() + getHanbokCost();
+    return {
+      min: hall.min + studio.min + dress.min + makeup.min + others,
+      max: hall.max + studio.max + dress.max + makeup.max + others,
+    };
   };
 
   const getRemainingBudget = () => state.totalBudget - getTotalCost();
@@ -138,6 +189,9 @@ export function BudgetProvider({ children }) {
     getHanbokCost,
     getTotalCost,
     getHallCostRange,
+    getStudioCostRange,
+    getDressCostRange,
+    getMakeupCostRange,
     getTotalCostRange,
     getRemainingBudget,
     getBudgetPercent,

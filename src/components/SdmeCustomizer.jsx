@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useBudget } from '../context/BudgetContext';
 import { getVendors } from '../api/vendors';
 import HorizontalScroll from './HorizontalScroll';
+import SdmeRangePicker from './SdmeRangePicker';
 
 function formatPrice(n) {
   if (n >= 10000) return (n / 10000).toFixed(0) + '만';
@@ -100,54 +101,15 @@ export default function SdmeCustomizer() {
         <CategoryToggle label="혼주한복" icon="👘" enabled={includeHanbok} onToggle={() => dispatch({ type: 'TOGGLE_HANBOK', payload: !includeHanbok })} />
       </div>
 
-      {/* Studio */}
-      {includeStudio && (
+      {/* 스드메 범위 추정 */}
+      {(includeStudio || includeDress || includeMakeup) && (
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-charcoal flex items-center gap-2">
-            <span className="w-8 h-8 bg-soft-gold/10 rounded-lg flex items-center justify-center text-sm">📸</span>
-            스튜디오
+            <span className="w-8 h-8 bg-soft-gold/10 rounded-lg flex items-center justify-center text-sm">✨</span>
+            스드메 가격 범위
+            <span className="text-xs font-normal text-charcoal/40 ml-1">지역별 통계 기준</span>
           </h3>
-          <HorizontalScroll>
-            {(vendors.studio ?? []).map((s) => (
-              <div key={s.id} className="min-w-[250px] max-w-[250px] shrink-0">
-                <VendorCard item={s} isSelected={selectedStudio?.id === s.id} onToggle={() => handleSelect('STUDIO', s, selectedStudio)} />
-              </div>
-            ))}
-          </HorizontalScroll>
-        </div>
-      )}
-
-      {/* Dress */}
-      {includeDress && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold text-charcoal flex items-center gap-2">
-            <span className="w-8 h-8 bg-soft-gold/10 rounded-lg flex items-center justify-center text-sm">👗</span>
-            드레스
-          </h3>
-          <HorizontalScroll>
-            {(vendors.dress ?? []).map((d) => (
-              <div key={d.id} className="min-w-[250px] max-w-[250px] shrink-0">
-                <VendorCard item={d} isSelected={selectedDress?.id === d.id} onToggle={() => handleSelect('DRESS', d, selectedDress)} />
-              </div>
-            ))}
-          </HorizontalScroll>
-        </div>
-      )}
-
-      {/* Makeup */}
-      {includeMakeup && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold text-charcoal flex items-center gap-2">
-            <span className="w-8 h-8 bg-soft-gold/10 rounded-lg flex items-center justify-center text-sm">💄</span>
-            메이크업
-          </h3>
-          <HorizontalScroll>
-            {(vendors.makeup ?? []).map((m) => (
-              <div key={m.id} className="min-w-[250px] max-w-[250px] shrink-0">
-                <VendorCard item={m} isSelected={selectedMakeup?.id === m.id} onToggle={() => handleSelect('MAKEUP', m, selectedMakeup)} />
-              </div>
-            ))}
-          </HorizontalScroll>
+          <SdmeRangePicker />
         </div>
       )}
 
