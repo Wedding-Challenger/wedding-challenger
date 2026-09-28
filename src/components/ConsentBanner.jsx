@@ -1,25 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { STORAGE_KEY, getConsent, setConsent } from '../lib/consent';
 
-export default function ConsentBanner({ onChange }) {
+// 열림 여부·저장은 App 이 관리. 첫 방문 시 자동 표시, 이후 푸터 「광고 동의 설정」으로 다시 열림.
+export default function ConsentBanner({ open, onDecide }) {
   // PIPA 적합성 검토 필요 — 김경수 P0 게이트 (docs/privacy/consent-banner-copy.ko.md 와 정합)
-  const [shown, setShown] = useState(() => !localStorage.getItem(STORAGE_KEY));
+  if (!open) return null;
 
-  useEffect(() => {
-    if (localStorage.getItem(STORAGE_KEY) && onChange) {
-      onChange(getConsent());
-    }
-  }, [onChange]);
-
-  if (!shown) return null;
-
-  const decide = (ads) => {
-    const consent = { necessary: true, ads };
-    setConsent(consent);
-    setShown(false);
-    if (onChange) onChange(consent);
-  };
+  const decide = (ads) => onDecide({ necessary: true, ads });
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-warm-beige/40 shadow-lg p-6">

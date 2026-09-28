@@ -4,6 +4,14 @@
 
 export const STORAGE_KEY = 'wc-consent'; // index.html 인라인 스크립트와 같은 키
 
+export function hasStoredConsent() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export function getConsent() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { necessary: true, ads: false };

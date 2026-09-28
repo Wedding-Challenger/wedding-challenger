@@ -1,7 +1,7 @@
 import { Routes, Route, NavLink, Link } from 'react-router-dom';
 import { useState } from 'react';
 import ConsentBanner from './components/ConsentBanner';
-import { getConsent } from './lib/consent';
+import { getConsent, hasStoredConsent, setConsent as saveConsent } from './lib/consent';
 import AdSenseLoader from './components/AdSenseLoader';
 import AdSlot from './components/AdSlot';
 import { AD_SLOTS } from './config/ads';
@@ -38,7 +38,7 @@ function Header() {
   );
 }
 
-function Footer({ adsEnabled }) {
+function Footer({ adsEnabled, onOpenConsent }) {
   return (
     <footer className="bg-white border-t border-warm-beige/30 py-8 mt-16">
       <div className="max-w-7xl mx-auto px-6">
@@ -55,6 +55,10 @@ function Footer({ adsEnabled }) {
             <Link to="/privacy" className="hover:text-deep-rose transition-colors">개인정보처리방침</Link>
             <span className="text-charcoal/20">|</span>
             <Link to="/terms" className="hover:text-deep-rose transition-colors">이용약관</Link>
+            <span className="text-charcoal/20">|</span>
+            <button type="button" onClick={onOpenConsent} className="hover:text-deep-rose transition-colors">
+              광고 동의 설정
+            </button>
           </nav>
           <p className="text-xs text-charcoal/20">© 2026 웨딩첼린저. All rights reserved.</p>
         </div>
@@ -65,6 +69,19 @@ function Footer({ adsEnabled }) {
 
 export default function App() {
   const [consent, setConsent] = useState(getConsent);
+  const [bannerOpen, setBannerOpen] = useState(() => !hasStoredConsent());
+
+  const handleDecide = (next) => {
+    saveConsent(next); // gtag consent update 포함
+    setBannerOpen(false);
+    // 이미 로드된 adsbygoogle.js 와 표시된 광고는 깔끔히 내릴 방법이 없어 새로고침.
+    // 새로고침 후엔 동의=false 라 스크립트·슬롯 모두 로드되지 않음.
+    if (consent.ads && !next.ads) {
+      window.location.reload();
+      return;
+    }
+    setConsent(next);
+  };
 
   return (
     <div className="min-h-screen">
@@ -81,8 +98,8 @@ export default function App() {
           <Route path="/terms" element={<Terms />} />
         </Routes>
       </main>
-      <Footer adsEnabled={consent.ads} />
-      <ConsentBanner onChange={setConsent} />
+      <Footer adsEnabled={consent.ads} onOpenConsent={() => setBannerOpen(true)} />
+      <ConsentBanner open={bannerOpen} onDecide={handleDecide} />
     </div>
   );
 }
