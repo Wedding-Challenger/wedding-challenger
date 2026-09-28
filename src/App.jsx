@@ -1,7 +1,7 @@
 import { Routes, Route, NavLink, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ConsentBanner from './components/ConsentBanner';
-import { getConsent, hasStoredConsent, setConsent as saveConsent } from './lib/consent';
+import { STORAGE_KEY, getConsent, hasStoredConsent, setConsent as saveConsent } from './lib/consent';
 import AdSenseLoader from './components/AdSenseLoader';
 import AdSlot from './components/AdSlot';
 import { AD_SLOTS } from './config/ads';
@@ -82,6 +82,16 @@ export default function App() {
     }
     setConsent(next);
   };
+
+  // 다른 탭에서 철회해도 이 탭 광고를 내리도록 같은 방식(새로고침)으로 처리
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== STORAGE_KEY) return;
+      if (consent.ads && !getConsent().ads) window.location.reload();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [consent.ads]);
 
   return (
     <div className="min-h-screen">
