@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ADSENSE_CLIENT } from '../config/ads';
 
 export default function AdSlot({ enabled, slot, format = 'auto', className = '' }) {
   const insRef = useRef(null);
@@ -17,7 +18,7 @@ export default function AdSlot({ enabled, slot, format = 'auto', className = '' 
       ref={insRef}
       className={`adsbygoogle block ${className}`}
       style={{ display: 'block' }}
-      data-ad-client="ca-pub-3555843415102096"
+      data-ad-client={ADSENSE_CLIENT}
       data-ad-slot={slot}
       data-ad-format={format}
       data-full-width-responsive="true"

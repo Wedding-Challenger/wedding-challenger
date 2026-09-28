@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
+import { ADSENSE_CLIENT } from '../config/ads';
 
 const ADSENSE_SRC =
-  'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3555843415102096';
+  `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`;
 
 export default function AdSenseLoader({ enabled }) {
   useEffect(() => {
