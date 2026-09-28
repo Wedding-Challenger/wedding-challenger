@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getHalls } from '../api/halls';
 import { getVendors } from '../api/vendors';
 import AdSlot from './AdSlot';
+import { AD_SLOTS } from '../config/ads';
 
 function CardItem({ image, name, price, description, badge }) {
   return (
@@ -114,9 +115,7 @@ export default function PublicLanding({ adsEnabled }) {
           ))}
         </CategoryRow>
 
-        {adsEnabled && (
-          <AdSlot enabled slot="9999000001" format="auto" className="my-8 max-w-3xl mx-auto" />
-        )}
+        <AdSlot enabled={adsEnabled} slot={AD_SLOTS.landing} format="auto" className="my-8 max-w-3xl mx-auto" />
 
         <CategoryRow icon="💄" title="메이크업" subtitle="웨딩 메이크업">
           {makeups.map((m) => (

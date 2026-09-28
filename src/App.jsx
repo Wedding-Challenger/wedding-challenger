@@ -4,6 +4,7 @@ import ConsentBanner from './components/ConsentBanner';
 import { getConsent } from './lib/consent';
 import AdSenseLoader from './components/AdSenseLoader';
 import AdSlot from './components/AdSlot';
+import { AD_SLOTS } from './config/ads';
 import PublicLanding from './components/PublicLanding';
 import BudgetCalculator from './components/BudgetCalculator';
 import About from './components/About';
@@ -41,9 +42,7 @@ function Footer({ adsEnabled }) {
   return (
     <footer className="bg-white border-t border-warm-beige/30 py-8 mt-16">
       <div className="max-w-7xl mx-auto px-6">
-        {adsEnabled && (
-          <AdSlot enabled slot="9999000003" format="horizontal" className="mb-6" />
-        )}
+        <AdSlot enabled={adsEnabled} slot={AD_SLOTS.footer} format="horizontal" className="mb-6" />
         <div className="text-center text-sm text-charcoal/30 space-y-3">
           <p>웨딩첼린저 — 예산에 맞는 완벽한 웨딩 플래닝</p>
           <nav className="flex items-center justify-center gap-4 text-charcoal/50">
