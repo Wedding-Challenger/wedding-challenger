@@ -7,6 +7,7 @@ import BudgetBasket from './BudgetBasket';
 import HorizontalScroll from './HorizontalScroll';
 import HallRangeCompare from './HallRangeCompare';
 import AdSlot from './AdSlot';
+import { AD_SLOTS } from '../config/ads';
 import { useState, useEffect } from 'react';
 import { getHalls } from '../api/halls';
 
@@ -103,9 +104,7 @@ export default function BudgetCalculator({ adsEnabled }) {
 
         <aside className="w-full lg:w-[360px] shrink-0">
           <BudgetBasket />
-          {adsEnabled && (
-            <AdSlot enabled slot="9999000002" format="auto" className="hidden lg:block mt-6" />
-          )}
+          <AdSlot enabled={adsEnabled} slot={AD_SLOTS.calcSidebar} format="auto" className="hidden lg:block mt-6" />
         </aside>
       </div>
     </div>

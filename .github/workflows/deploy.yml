@@ -1,0 +1,45 @@
+# master 에 push 되면 빌드(사전 렌더링 포함) 후 Cloudflare Pages 에 배포한다.
+# 필요한 저장소 설정 (Settings > Secrets and variables > Actions):
+#   secrets.CLOUDFLARE_API_TOKEN   — 권한: Account > Cloudflare Pages > Edit
+#   secrets.CLOUDFLARE_ACCOUNT_ID
+#   vars.CLOUDFLARE_PAGES_PROJECT  — Pages 프로젝트 이름
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      # 빌드 산출물에 AdSense 필수 파일이 빠지면 배포 중단
+      - name: Check AdSense files
+        run: |
+          grep -q "^google.com, pub-[0-9]*, DIRECT" dist/ads.txt
+          grep -q 'google-adsense-account" content="ca-pub-[0-9]*"' dist/index.html
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=master
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
