@@ -7,12 +7,11 @@ const ADSENSE_SRC =
 export default function AdSenseLoader({ enabled }) {
   useEffect(() => {
     if (!enabled) return;
-    if (document.querySelector('script[data-wc-adsense]')) return;
+    if (document.querySelector(`script[src="${ADSENSE_SRC}"]`)) return;
     const s = document.createElement('script');
     s.async = true;
     s.src = ADSENSE_SRC;
     s.crossOrigin = 'anonymous';
-    s.dataset.wcAdsense = '1';
     document.head.appendChild(s);
   }, [enabled]);
   return null;

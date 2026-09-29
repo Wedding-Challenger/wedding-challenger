@@ -5,9 +5,10 @@
 export const ADSENSE_PUBLISHER_ID = 'pub-3555843415102096';
 export const ADSENSE_CLIENT = `ca-${ADSENSE_PUBLISHER_ID}`;
 
-// 아직 AdSense 콘솔에서 광고 단위를 만들지 않아 임시값(9999...)이다.
+// AdSense 콘솔 > 광고 > 광고 단위에서 만든 슬롯 ID 를 넣는다.
+// 빈 값이면 해당 위치는 그리지 않고, 자동 광고(콘솔에서 사이트별로 켬)만 노출된다.
 export const AD_SLOTS = {
-  landing: '9999000001',
-  calcSidebar: '9999000002',
-  footer: '9999000003',
+  landing: '',
+  calcSidebar: '',
+  footer: '',
 };
