@@ -4,6 +4,8 @@
 
 export const STORAGE_KEY = 'wc-consent'; // index.html 인라인 스크립트와 같은 키
 
+export const DEFAULT_CONSENT = { necessary: true, ads: false };
+
 export function hasStoredConsent() {
   try {
     return localStorage.getItem(STORAGE_KEY) !== null;
@@ -14,9 +16,9 @@ export function hasStoredConsent() {
 
 export function getConsent() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { necessary: true, ads: false };
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || DEFAULT_CONSENT;
   } catch {
-    return { necessary: true, ads: false };
+    return DEFAULT_CONSENT;
   }
 }
 

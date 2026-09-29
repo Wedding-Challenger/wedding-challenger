@@ -1,10 +1,11 @@
-import { Routes, Route, NavLink, Link } from 'react-router-dom';
+import { Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import ConsentBanner from './components/ConsentBanner';
-import { STORAGE_KEY, getConsent, hasStoredConsent, setConsent as saveConsent } from './lib/consent';
+import { DEFAULT_CONSENT, STORAGE_KEY, getConsent, hasStoredConsent, setConsent as saveConsent } from './lib/consent';
 import AdSenseLoader from './components/AdSenseLoader';
 import AdSlot from './components/AdSlot';
 import { AD_SLOTS } from './config/ads';
+import { ROUTES } from './config/routes';
 import PublicLanding from './components/PublicLanding';
 import BudgetCalculator from './components/BudgetCalculator';
 import About from './components/About';
@@ -67,9 +68,27 @@ function Footer({ adsEnabled, onOpenConsent }) {
   );
 }
 
+// 첫 로드 제목은 사전 렌더링 HTML 에 들어 있고, 이후 클라이언트 이동 시 여기서 갱신
+function useRouteTitle() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const route = ROUTES.find((r) => r.path === pathname);
+    if (route) document.title = route.title;
+  }, [pathname]);
+}
+
 export default function App() {
-  const [consent, setConsent] = useState(getConsent);
-  const [bannerOpen, setBannerOpen] = useState(() => !hasStoredConsent());
+  useRouteTitle();
+  // 사전 렌더링 HTML 과 첫 렌더를 맞추려고 기본값(미동의·배너 닫힘)으로 시작한 뒤 저장값을 읽는다.
+  const [consent, setConsent] = useState(DEFAULT_CONSENT);
+  const [bannerOpen, setBannerOpen] = useState(false);
+
+  useEffect(() => {
+    // 하이드레이션 직후 1회 localStorage 동기화 — 렌더 중 읽으면 서버 HTML 과 어긋남
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setConsent(getConsent());
+    setBannerOpen(!hasStoredConsent());
+  }, []);
 
   const handleDecide = (next) => {
     saveConsent(next); // gtag consent update 포함
