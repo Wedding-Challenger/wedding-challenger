@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getHalls } from '../api/halls';
 import { getVendors } from '../api/vendors';
 import AdSlot from './AdSlot';
+import { FALLBACK_HALLS, fallbackVendors } from '../data/fallback';
 import { AD_SLOTS } from '../config/ads';
 
 function CardItem({ image, name, price, description, badge }) {
@@ -47,8 +48,14 @@ function CategoryRow({ icon, title, subtitle, children }) {
 }
 
 export default function PublicLanding({ adsEnabled }) {
-  const [halls, setHalls] = useState([]);
-  const [vendors, setVendors] = useState({});
+  // 첫 렌더(사전 렌더링 포함)는 내장 데이터, API 응답이 오면 교체
+  const [halls, setHalls] = useState(FALLBACK_HALLS);
+  const [vendors, setVendors] = useState(() => ({
+    studio: fallbackVendors('studio'),
+    dress: fallbackVendors('dress'),
+    makeup: fallbackVendors('makeup'),
+    snap: fallbackVendors('snap'),
+  }));
 
   useEffect(() => {
     getHalls().then(setHalls).catch(console.error);

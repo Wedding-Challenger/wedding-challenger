@@ -1,4 +1,5 @@
 import request from './client';
+import { FALLBACK_HALLS } from '../data/fallback';
 
 function normalizeHall(h) {
   const prices = h.prices ?? [];
@@ -20,8 +21,13 @@ function normalizeHall(h) {
 }
 
 export async function getHalls() {
-  const data = await request('/api/halls');
-  return (data.halls ?? []).map(normalizeHall);
+  try {
+    const data = await request('/api/halls');
+    return (data.halls ?? []).map(normalizeHall);
+  } catch (err) {
+    console.warn('웨딩홀 API 실패, 내장 데이터 사용:', err.message);
+    return FALLBACK_HALLS;
+  }
 }
 
 export async function getHallDetail(id) {

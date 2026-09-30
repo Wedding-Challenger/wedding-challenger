@@ -104,12 +104,14 @@ export default function WeddingHallCard({ hall }) {
         </div>
 
         <div className="flex gap-2 pt-1">
-          <button
-            onClick={(e) => { e.stopPropagation(); window.open(hall.homepage, '_blank'); }}
-            className="flex-1 py-2.5 text-sm border-2 border-warm-beige/50 rounded-xl text-charcoal/60 hover:border-soft-gold/30 hover:text-soft-gold transition-all"
-          >
-            🔗 홈페이지
-          </button>
+          {hall.homepage && (
+            <button
+              onClick={(e) => { e.stopPropagation(); window.open(hall.homepage, '_blank'); }}
+              className="flex-1 py-2.5 text-sm border-2 border-warm-beige/50 rounded-xl text-charcoal/60 hover:border-soft-gold/30 hover:text-soft-gold transition-all"
+            >
+              🔗 홈페이지
+            </button>
+          )}
           <button
             onClick={(e) => e.stopPropagation()}
             className="flex-1 py-2.5 text-sm border-2 border-warm-beige/50 rounded-xl text-charcoal/60 hover:border-soft-gold/30 hover:text-soft-gold transition-all"

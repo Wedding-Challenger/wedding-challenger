@@ -37,6 +37,19 @@ jobs:
           grep -q "^google.com, pub-[0-9]*, DIRECT" dist/ads.txt
           grep -q 'google-adsense-account" content="ca-pub-[0-9]*"' dist/index.html
 
+      # 첫 배포 때 Pages 프로젝트가 없으면 만든다 (운영 브랜치 master)
+      - name: Ensure Pages project
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          if npx --yes wrangler@4 pages project list | grep -qw "$PROJECT"; then
+            echo "Pages project '$PROJECT' exists"
+          else
+            npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=master
+          fi
+
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

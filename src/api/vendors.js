@@ -1,4 +1,5 @@
 import request from './client';
+import { fallbackVendors } from '../data/fallback';
 
 function normalizeVendor(v) {
   return {
@@ -10,8 +11,13 @@ function normalizeVendor(v) {
 
 export async function getVendors(category) {
   const query = category ? `?category=${category}` : '';
-  const data = await request(`/api/vendors${query}`);
-  return (data.vendors ?? []).map(normalizeVendor);
+  try {
+    const data = await request(`/api/vendors${query}`);
+    return (data.vendors ?? []).map(normalizeVendor);
+  } catch (err) {
+    console.warn('업체 API 실패, 내장 데이터 사용:', err.message);
+    return fallbackVendors(category);
+  }
 }
 
 export async function getVendorDetail(id) {
