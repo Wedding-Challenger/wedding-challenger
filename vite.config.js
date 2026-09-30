@@ -21,6 +21,6 @@ function adsense() {
 export default defineConfig({
   plugins: [react(), tailwindcss(), adsense()],
   server: {
-    port: 3000,
+    port: 5173,
   },
 })
