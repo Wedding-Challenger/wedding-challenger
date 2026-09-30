@@ -99,7 +99,7 @@ export default function PublicLanding({ adsEnabled }) {
                 image={h.image}
                 name={h.name}
                 price={null}
-                description={`${h.location} · ${h.type}`}
+                description={[h.location, h.type].filter(Boolean).join(' · ')}
                 badge={`${h.pricePerPerson.toLocaleString()}원/인`}
               />
             </Link>
