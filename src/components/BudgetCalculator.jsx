@@ -10,9 +10,10 @@ import AdSlot from './AdSlot';
 import { AD_SLOTS } from '../config/ads';
 import { useState, useEffect } from 'react';
 import { getHalls } from '../api/halls';
+import { FALLBACK_HALLS } from '../data/fallback';
 
 function HallSection() {
-  const [weddingHalls, setWeddingHalls] = useState([]);
+  const [weddingHalls, setWeddingHalls] = useState(FALLBACK_HALLS);
   const [viewMode, setViewMode] = useState('card');
 
   useEffect(() => {
