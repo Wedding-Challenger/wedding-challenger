@@ -37,16 +37,20 @@ export default function WeddingHallCard({ hall }) {
           alt={hall.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
-        <div className="absolute top-3 left-3 flex gap-2">
-          <span className="bg-white/90 backdrop-blur-sm text-xs font-semibold px-3 py-1.5 rounded-full text-charcoal">
-            {hall.type}
-          </span>
-        </div>
-        <div className="absolute top-3 right-3">
-          <span className="bg-white/90 backdrop-blur-sm text-xs font-bold px-2.5 py-1.5 rounded-full text-soft-gold">
-            ★ {hall.rating}
-          </span>
-        </div>
+        {hall.type && (
+          <div className="absolute top-3 left-3 flex gap-2">
+            <span className="bg-white/90 backdrop-blur-sm text-xs font-semibold px-3 py-1.5 rounded-full text-charcoal">
+              {hall.type}
+            </span>
+          </div>
+        )}
+        {hall.rating != null && (
+          <div className="absolute top-3 right-3">
+            <span className="bg-white/90 backdrop-blur-sm text-xs font-bold px-2.5 py-1.5 rounded-full text-soft-gold">
+              ★ {hall.rating}
+            </span>
+          </div>
+        )}
         {isSelected && (
           <div className="absolute inset-0 bg-soft-gold/20 flex items-center justify-center">
             <div className="bg-soft-gold text-white w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold shadow-lg">✓</div>
@@ -99,8 +103,9 @@ export default function WeddingHallCard({ hall }) {
         </div>
 
         <div className="flex items-center justify-between text-xs text-charcoal/50">
-          <span>수용 {hall.capacity.min}~{hall.capacity.max}명</span>
-          <span>예식 간격 {hall.intervalMinutes}분</span>
+          {/* 백엔드 데이터는 수용 인원·예식 간격이 비어 있을 수 있다 */}
+          {hall.capacity?.min != null && <span>수용 {hall.capacity.min}~{hall.capacity.max}명</span>}
+          {hall.intervalMinutes != null && <span>예식 간격 {hall.intervalMinutes}분</span>}
         </div>
 
         <div className="flex gap-2 pt-1">

@@ -29,6 +29,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm test
       - run: npm run build
 
       # 빌드 산출물에 AdSense 필수 파일이 빠지면 배포 중단
