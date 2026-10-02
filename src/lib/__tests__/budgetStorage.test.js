@@ -11,8 +11,28 @@ afterEach(() => vi.unstubAllGlobals());
 describe('budgetStorage', () => {
   it('저장한 온보딩 값을 그대로 읽는다', () => {
     vi.stubGlobal('localStorage', memoryStorage());
-    saveBudget({ totalBudget: 70000000, guestCount: 150, onboardingComplete: true });
-    expect(loadBudget()).toEqual({ totalBudget: 70000000, guestCount: 150, onboardingComplete: true });
+    saveBudget({ totalBudget: 70000000, guestCount: 150, onboardingComplete: true, rentRange: { min: 0, max: 3000000 }, foodRange: { min: 50000, max: 70000 } });
+    expect(loadBudget()).toEqual({
+      totalBudget: 70000000, guestCount: 150, onboardingComplete: true,
+      rentRange: { min: 0, max: 3000000 }, foodRange: { min: 50000, max: 70000 },
+    });
+  });
+
+  it('범위 필드가 없는 이전 형식은 상관없음(null)으로 읽는다', () => {
+    const s = memoryStorage();
+    vi.stubGlobal('localStorage', s);
+    s.setItem(BUDGET_STORAGE_KEY, JSON.stringify({ totalBudget: 50000000, guestCount: 200, onboardingComplete: true }));
+    expect(loadBudget()).toEqual({ totalBudget: 50000000, guestCount: 200, onboardingComplete: true, rentRange: null, foodRange: null });
+  });
+
+  it('깨진 범위 값은 정리한다 (음수·문자 → 제한 없음, min>max → 맞바꿈)', () => {
+    const s = memoryStorage();
+    vi.stubGlobal('localStorage', s);
+    s.setItem(BUDGET_STORAGE_KEY, JSON.stringify({
+      totalBudget: 50000000, guestCount: 200, onboardingComplete: true,
+      rentRange: { min: 'x', max: -1 }, foodRange: { min: 90000, max: 70000 },
+    }));
+    expect(loadBudget()).toMatchObject({ rentRange: null, foodRange: { min: 70000, max: 90000 } });
   });
 
   it('없거나 깨진 값은 null', () => {
