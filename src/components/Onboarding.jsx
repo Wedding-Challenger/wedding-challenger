@@ -16,12 +16,14 @@ const GUEST_OPTIONS = [
   { label: '300명 이상', value: 400, icon: '👥' },
 ];
 
-export default function Onboarding() {
-  const { dispatch } = useBudget();
-  const [step, setStep] = useState(0);
-  const [budget, setBudget] = useState(50000000);
-  const [guestCount, setGuestCount] = useState(200);
-  const [customBudget, setCustomBudget] = useState('');
+export default function Onboarding({ picked }) {
+  const { dispatch, reopened, totalBudget, guestCount: currentGuests } = useBudget();
+  // 다시 설정할 때는 인사 단계를 건너뛰고 현재 값을 채워 둔다
+  const isPreset = BUDGET_OPTIONS.some((o) => o.value === totalBudget);
+  const [step, setStep] = useState(reopened ? 1 : 0);
+  const [budget, setBudget] = useState(isPreset ? totalBudget : 50000000);
+  const [guestCount, setGuestCount] = useState(currentGuests);
+  const [customBudget, setCustomBudget] = useState(reopened && !isPreset ? String(totalBudget) : '');
 
   const handleComplete = () => {
     const finalBudget = customBudget ? parseInt(customBudget) : budget;
@@ -32,7 +34,18 @@ export default function Onboarding() {
 
   return (
     <div className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
+        {reopened && (
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'CANCEL_ONBOARDING' })}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full text-charcoal/40 hover:text-charcoal hover:bg-warm-beige/30 transition-all"
+            aria-label="닫기 (이전 설정 유지)"
+            title="닫기 (이전 설정 유지)"
+          >
+            ✕
+          </button>
+        )}
         {/* Progress */}
         <div className="flex gap-1 p-6 pb-0">
           {[0, 1, 2].map((i) => (
@@ -47,6 +60,11 @@ export default function Onboarding() {
               <div className="text-5xl">💍</div>
               <h2 className="text-2xl font-bold text-charcoal">웨딩첼린저에 오신 것을 환영합니다</h2>
               <p className="text-charcoal/60">예산에 맞는 완벽한 웨딩을 함께 설계해요.<br/>몇 가지만 알려주시면 맞춤 견적을 준비해 드릴게요.</p>
+              {picked && (
+                <p className="text-sm text-soft-gold bg-soft-gold/10 rounded-xl px-4 py-2.5">
+                  「<span className="font-semibold">{picked}</span>」 견적을 바로 이어서 볼 수 있게 준비해 둘게요
+                </p>
+              )}
               <button
                 onClick={() => setStep(1)}
                 className="w-full py-4 bg-soft-gold text-white rounded-2xl font-semibold text-lg hover:bg-soft-gold/90 transition-all active:scale-[0.98]"

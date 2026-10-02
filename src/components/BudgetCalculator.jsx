@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useBudget } from '../context/BudgetContext';
 import Onboarding from './Onboarding';
 import WeddingHallCard from './WeddingHallCard';
@@ -8,7 +8,7 @@ import HorizontalScroll from './HorizontalScroll';
 import HallRangeCompare from './HallRangeCompare';
 import AdSlot from './AdSlot';
 import { AD_SLOTS } from '../config/ads';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { getHalls } from '../api/halls';
 import HallFilter from './HallFilter';
 import { filterHalls } from '../lib/halls';
@@ -79,30 +79,63 @@ function HallSection() {
   );
 }
 
+// 홈 카드에서 넘어온 항목: 웨딩홀·스냅은 담고, 스드메는 시세 선택 섹션으로만 안내
+const PICK_SECTION = { HALL: 'halls', SNAP: 'sdme', SDME: 'sdme' };
+
 export default function BudgetCalculator({ adsEnabled }) {
-  const { onboardingComplete, dispatch } = useBudget();
+  const { onboardingComplete, hydrated, dispatch } = useBudget();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [pick] = useState(() => location.state?.pick ?? null);
+  const pendingScroll = useRef(pick ? PICK_SECTION[pick.type] : null);
 
-  if (!onboardingComplete) {
-    return <Onboarding />;
-  }
+  // 넘어온 항목을 한 번만 담고, 새로고침 때 다시 담지 않도록 history state 를 비운다
+  useEffect(() => {
+    if (!pick) return;
+    if (pick.type === 'HALL') dispatch({ type: 'SELECT_HALL', payload: pick.item });
+    if (pick.type === 'SNAP') {
+      dispatch({ type: 'TOGGLE_SNAP', payload: true });
+      dispatch({ type: 'SELECT_SNAP', payload: pick.item });
+    }
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleReset = () => {
-    dispatch({ type: 'RESET' });
-    navigate('/calc');
+  // 온보딩이 끝난 뒤(또는 이미 끝났으면 바로) 해당 섹션으로 이동
+  useEffect(() => {
+    if (!hydrated || !onboardingComplete || !pendingScroll.current) return;
+    document.getElementById(pendingScroll.current)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    pendingScroll.current = null;
+  }, [hydrated, onboardingComplete]);
+
+  const handleClear = () => {
+    if (window.confirm('담아 둔 웨딩홀·스드메·스냅을 모두 비울까요? 예산과 하객 수는 그대로 둡니다.')) {
+      dispatch({ type: 'CLEAR_SELECTIONS' });
+    }
   };
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">
-      <div className="flex items-center justify-between mb-8">
+      {/* 저장된 온보딩 값을 읽은 뒤에만 띄워 재방문 때 깜빡이지 않게 한다. 사전 렌더링에는 계산기 본문이 들어간다 */}
+      {hydrated && !onboardingComplete && <Onboarding picked={pick?.label} />}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <h1 className="text-2xl font-bold text-charcoal">웨딩 견적 계산기</h1>
-        <button
-          onClick={handleReset}
-          className="text-xs px-3 py-1.5 rounded-lg border border-warm-beige/50 text-charcoal/40 hover:text-deep-rose hover:border-deep-rose/30 transition-all"
-          title="예산·하객 다시 설정"
-        >
-          ↺ 초기설정
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => dispatch({ type: 'REOPEN_ONBOARDING' })}
+            className="text-xs px-3 py-1.5 rounded-lg border border-warm-beige/50 text-charcoal/50 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
+            title="담아 둔 견적은 그대로 두고 예산·하객 수만 다시 설정"
+          >
+            ✎ 예산·하객 다시 설정
+          </button>
+          <button
+            onClick={handleClear}
+            className="text-xs px-3 py-1.5 rounded-lg border border-warm-beige/50 text-charcoal/40 hover:text-deep-rose hover:border-deep-rose/30 transition-all"
+            title="예산·하객 수는 그대로 두고 담아 둔 항목만 비우기"
+          >
+            ↺ 견적 비우기
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">

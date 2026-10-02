@@ -12,6 +12,9 @@ import { displayName, filterHalls } from '../lib/halls';
 // 홈에서는 지역별로 이만큼만 보여 주고 나머지는 계산기로 보낸다
 const LANDING_HALLS = 12;
 
+// 스튜디오·드레스·메이크업은 계산기에서 지역 시세로 고르므로 해당 섹션으로만 안내한다
+const SDME_PICK = { pick: { type: 'SDME', label: '스드메 시세' } };
+
 function CardItem({ image, media, name, title, price, description, badge }) {
   return (
     <div className="min-w-[260px] max-w-[260px] shrink-0 bg-white rounded-2xl shadow-sm border border-warm-beige/30 overflow-hidden">
@@ -108,7 +111,7 @@ export default function PublicLanding({ adsEnabled }) {
           filter={<HallFilter halls={halls} area={area} onAreaChange={setArea} />}
         >
           {areaHalls.slice(0, LANDING_HALLS).map((h) => (
-            <Link to="/calc" key={h.id}>
+            <Link to="/calc" key={h.id} state={{ pick: { type: 'HALL', item: h, label: displayName(h.name) } }}>
               <CardItem
                 media={<HallThumb hall={h} />}
                 name={displayName(h.name)}
@@ -133,7 +136,7 @@ export default function PublicLanding({ adsEnabled }) {
 
         <CategoryRow icon="📸" title="스튜디오" subtitle="웨딩 촬영">
           {studios.map((s) => (
-            <Link to="/calc" key={s.id}>
+            <Link to="/calc" key={s.id} state={SDME_PICK}>
               <CardItem image={s.image} name={s.name} price={s.price} description={s.description} />
             </Link>
           ))}
@@ -141,7 +144,7 @@ export default function PublicLanding({ adsEnabled }) {
 
         <CategoryRow icon="👗" title="드레스" subtitle="웨딩드레스">
           {dresses.map((d) => (
-            <Link to="/calc" key={d.id}>
+            <Link to="/calc" key={d.id} state={SDME_PICK}>
               <CardItem image={d.image} name={d.name} price={d.price} description={d.description} />
             </Link>
           ))}
@@ -151,7 +154,7 @@ export default function PublicLanding({ adsEnabled }) {
 
         <CategoryRow icon="💄" title="메이크업" subtitle="웨딩 메이크업">
           {makeups.map((m) => (
-            <Link to="/calc" key={m.id}>
+            <Link to="/calc" key={m.id} state={SDME_PICK}>
               <CardItem image={m.image} name={m.name} price={m.price} description={m.description} />
             </Link>
           ))}
@@ -159,7 +162,7 @@ export default function PublicLanding({ adsEnabled }) {
 
         <CategoryRow icon="📷" title="스냅" subtitle="본식 스냅 촬영">
           {snaps.map((s) => (
-            <Link to="/calc" key={s.id}>
+            <Link to="/calc" key={s.id} state={{ pick: { type: 'SNAP', item: s, label: s.name } }}>
               <CardItem image={s.image} name={s.name} price={s.price} description={s.description} />
             </Link>
           ))}
