@@ -11,6 +11,8 @@ const initialState = {
   onboardingComplete: false,
   // 저장된 온보딩 값을 읽었는지. 사전 렌더링·첫 렌더는 false 라 서버 HTML 과 어긋나지 않는다
   hydrated: false,
+  // 계산기에서 '예산·하객 다시 설정'으로 연 온보딩인지 (닫기로 이전 값 유지 가능)
+  reopened: false,
   // Selections
   selectedHall: null,
   selectedStudio: null,
@@ -43,7 +45,16 @@ function budgetReducer(state, action) {
     case 'RESTORE':
       return { ...state, ...action.payload, hydrated: true };
     case 'COMPLETE_ONBOARDING':
-      return { ...state, onboardingComplete: true, totalBudget: action.payload.budget, guestCount: action.payload.guestCount };
+      return { ...state, onboardingComplete: true, reopened: false, totalBudget: action.payload.budget, guestCount: action.payload.guestCount };
+    case 'REOPEN_ONBOARDING':
+      return { ...state, onboardingComplete: false, reopened: true };
+    case 'CANCEL_ONBOARDING':
+      return { ...state, onboardingComplete: true, reopened: false };
+    case 'CLEAR_SELECTIONS': {
+      // 예산·하객·온보딩 상태는 두고 담은 항목·토글만 처음으로
+      const { totalBudget, guestCount, onboardingComplete, hydrated } = state;
+      return { ...initialState, totalBudget, guestCount, onboardingComplete, hydrated };
+    }
     case 'SELECT_HALL':
       return { ...state, selectedHall: action.payload };
     case 'DESELECT_HALL':
@@ -102,8 +113,6 @@ function budgetReducer(state, action) {
       return { ...state, includeHanbok: action.payload, selectedHanbok: action.payload ? state.selectedHanbok : null };
     case 'TOGGLE_MAKEUP':
       return { ...state, includeMakeup: action.payload, selectedMakeup: action.payload ? state.selectedMakeup : null };
-    case 'RESET':
-      return { ...initialState, hydrated: true };
     default:
       return state;
   }
