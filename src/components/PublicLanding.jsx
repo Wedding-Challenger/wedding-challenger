@@ -1,16 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { getHalls } from '../api/halls';
 import { getVendors } from '../api/vendors';
 import AdSlot from './AdSlot';
 import { FALLBACK_HALLS, fallbackVendors } from '../data/fallback';
 import { AD_SLOTS } from '../config/ads';
+import HallFilter from './HallFilter';
+import HallThumb from './HallThumb';
+import { displayName, filterHalls } from '../lib/halls';
 
-function CardItem({ image, name, price, description, badge }) {
+// 홈에서는 지역별로 이만큼만 보여 주고 나머지는 계산기로 보낸다
+const LANDING_HALLS = 12;
+
+function CardItem({ image, media, name, title, price, description, badge }) {
   return (
     <div className="min-w-[260px] max-w-[260px] shrink-0 bg-white rounded-2xl shadow-sm border border-warm-beige/30 overflow-hidden">
       <div className="h-36 bg-warm-beige/20 overflow-hidden">
-        <img src={image} alt={name} className="w-full h-full object-cover" />
+        {media ?? <img src={image} alt={name} className="w-full h-full object-cover" />}
       </div>
       <div className="p-4">
         {badge && (
@@ -18,7 +24,7 @@ function CardItem({ image, name, price, description, badge }) {
             {badge}
           </span>
         )}
-        <p className="font-semibold text-charcoal text-sm truncate">{name}</p>
+        <p className="font-semibold text-charcoal text-sm truncate" title={title}>{name}</p>
         {description && <p className="text-xs text-charcoal/50 mt-0.5 truncate">{description}</p>}
         {price != null && (
           <p className="text-sm font-bold text-soft-gold mt-2">
@@ -30,7 +36,7 @@ function CardItem({ image, name, price, description, badge }) {
   );
 }
 
-function CategoryRow({ icon, title, subtitle, children }) {
+function CategoryRow({ icon, title, subtitle, filter, children }) {
   return (
     <div className="mb-10">
       <div className="flex items-center gap-3 mb-4">
@@ -40,6 +46,7 @@ function CategoryRow({ icon, title, subtitle, children }) {
           {subtitle && <p className="text-xs text-charcoal/40">{subtitle}</p>}
         </div>
       </div>
+      {filter}
       <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
         {children}
       </div>
@@ -50,6 +57,8 @@ function CategoryRow({ icon, title, subtitle, children }) {
 export default function PublicLanding({ adsEnabled }) {
   // 첫 렌더(사전 렌더링 포함)는 내장 데이터, API 응답이 오면 교체
   const [halls, setHalls] = useState(FALLBACK_HALLS);
+  const [area, setArea] = useState(null);
+  const areaHalls = useMemo(() => filterHalls(halls, { area }), [halls, area]);
   const [vendors, setVendors] = useState(() => ({
     studio: fallbackVendors('studio'),
     dress: fallbackVendors('dress'),
@@ -92,18 +101,34 @@ export default function PublicLanding({ adsEnabled }) {
 
       {/* Catalog */}
       <section className="max-w-7xl mx-auto px-6 py-12">
-        <CategoryRow icon="🏛" title="웨딩홀" subtitle="예식장 비교">
-          {halls.map((h) => (
+        <CategoryRow
+          icon="🏛"
+          title="웨딩홀"
+          subtitle={`예식장 비교 · ${halls.length}곳`}
+          filter={<HallFilter halls={halls} area={area} onAreaChange={setArea} />}
+        >
+          {areaHalls.slice(0, LANDING_HALLS).map((h) => (
             <Link to="/calc" key={h.id}>
               <CardItem
-                image={h.image}
-                name={h.name}
+                media={<HallThumb hall={h} />}
+                name={displayName(h.name)}
+                title={h.name}
                 price={null}
                 description={[h.location, h.type].filter(Boolean).join(' · ')}
                 badge={`${h.pricePerPerson.toLocaleString()}원/인`}
               />
             </Link>
           ))}
+          {areaHalls.length > LANDING_HALLS && (
+            <Link
+              to="/calc"
+              className="min-w-[160px] shrink-0 rounded-2xl border-2 border-dashed border-warm-beige/60 flex flex-col items-center justify-center text-sm text-charcoal/50 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
+            >
+              <span className="text-2xl mb-1">→</span>
+              {area ?? '전체'} {areaHalls.length}곳
+              <span className="text-xs mt-0.5">계산기에서 모두 보기</span>
+            </Link>
+          )}
         </CategoryRow>
 
         <CategoryRow icon="📸" title="스튜디오" subtitle="웨딩 촬영">

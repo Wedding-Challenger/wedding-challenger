@@ -8,13 +8,18 @@ import HorizontalScroll from './HorizontalScroll';
 import HallRangeCompare from './HallRangeCompare';
 import AdSlot from './AdSlot';
 import { AD_SLOTS } from '../config/ads';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getHalls } from '../api/halls';
+import HallFilter from './HallFilter';
+import { filterHalls } from '../lib/halls';
 import { FALLBACK_HALLS } from '../data/fallback';
 
 function HallSection() {
   const [weddingHalls, setWeddingHalls] = useState(FALLBACK_HALLS);
   const [viewMode, setViewMode] = useState('card');
+  const [area, setArea] = useState(null);
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => filterHalls(weddingHalls, { area, query }), [weddingHalls, area, query]);
 
   useEffect(() => {
     getHalls().then(setWeddingHalls).catch(console.error);
@@ -46,16 +51,29 @@ function HallSection() {
         </div>
       </div>
 
+      <HallFilter
+        halls={weddingHalls}
+        area={area}
+        onAreaChange={setArea}
+        query={query}
+        onQueryChange={setQuery}
+        resultCount={filtered.length}
+      />
+
       {viewMode === 'card' ? (
+        filtered.length === 0 ? (
+          <p className="text-sm text-charcoal/40 text-center py-8">조건에 맞는 웨딩홀이 없어요</p>
+        ) : (
         <HorizontalScroll>
-          {weddingHalls.map((hall) => (
+          {filtered.map((hall) => (
             <div key={hall.id} className="min-w-[300px] max-w-[300px] shrink-0">
               <WeddingHallCard hall={hall} />
             </div>
           ))}
         </HorizontalScroll>
+        )
       ) : (
-        <HallRangeCompare />
+        <HallRangeCompare halls={filtered} />
       )}
     </section>
   );
