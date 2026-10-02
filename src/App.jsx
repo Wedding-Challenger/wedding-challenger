@@ -16,19 +16,19 @@ import Terms from './components/Terms';
 import './App.css';
 
 const navLinkClass = ({ isActive }) =>
-  `px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+  `px-2.5 sm:px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
     isActive ? 'bg-white text-charcoal shadow-sm' : 'text-charcoal/50 hover:text-charcoal'
   }`;
 
 function Header() {
   return (
     <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-warm-beige/30">
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-        <NavLink to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
+        <NavLink to="/" className="flex items-center gap-2 sm:gap-3 shrink-0 hover:opacity-80 transition-opacity">
           <span className="text-2xl">💍</span>
-          <h1 className="text-xl font-bold text-charcoal">웨딩첼린저</h1>
+          <h1 className="sr-only min-[400px]:not-sr-only text-lg sm:text-xl font-bold text-charcoal whitespace-nowrap">웨딩첼린저</h1>
         </NavLink>
-        <nav className="flex items-center gap-1 bg-warm-beige/20 rounded-xl p-1">
+        <nav className="flex items-center gap-0.5 sm:gap-1 bg-warm-beige/20 rounded-xl p-1">
           <NavLink to="/" end className={navLinkClass}>홈</NavLink>
           <NavLink to="/calc" className={navLinkClass}>예산 계산</NavLink>
           <NavLink to="/guide" className={navLinkClass}>가이드</NavLink>
