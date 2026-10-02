@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBudget } from '../context/BudgetContext';
+import { displayName } from '../lib/halls';
 
-// 260501 예식장.xlsx 데이터
-const EXCEL_HALLS = [
-  { id: 1, name: '더파티움여의도',    food: { min: 121000, max: 121000 }, rent: { min: 7150000,  max: 7150000  }, deco: { min: 0,        max: 0        } },
-  { id: 2, name: '제이케이아트',      food: { min: 67980,  max: 82400  }, rent: { min: 1000000,  max: 7000000  }, deco: { min: 3000000,  max: 3000000  } },
-  { id: 3, name: '플로팅아일랜드',    food: { min: 99000,  max: 132000 }, rent: { min: 3300000,  max: 5500000  }, deco: { min: 10450000, max: 11000000 } },
-  { id: 4, name: '마리나파크 웨딩홀', food: { min: 88000,  max: 110000 }, rent: { min: 13200000, max: 13200000 }, deco: { min: 0,        max: 0        } },
-  { id: 5, name: '소노펠리체 컨벤션', food: { min: 70550,  max: 88000  }, rent: { min: 4500000,  max: 9000000  }, deco: { min: 0,        max: 0        } },
-];
+// 목록이 길어 처음에는 이만큼만 그리고 '더 보기'로 늘린다
+const PAGE = 20;
 
 function fmt(n) {
   if (n == null || n === 0) return null;
@@ -23,43 +18,51 @@ function fmtRange(min, max) {
 }
 
 function calcRange(hall, guests) {
+  const { food, rent, deco } = hall.priceBreakdown;
   return {
-    min: hall.food.min * guests + hall.rent.min + hall.deco.min,
-    max: hall.food.max * guests + hall.rent.max + hall.deco.max,
-    food: { min: hall.food.min * guests, max: hall.food.max * guests },
-    rent: hall.rent,
-    deco: hall.deco,
+    min: food.min * guests + rent.min + deco.min,
+    max: food.max * guests + rent.max + deco.max,
+    food: { min: food.min * guests, max: food.max * guests },
+    rent,
+    deco,
   };
 }
 
-export default function HallRangeCompare() {
+// halls: api/halls.js 가 정규화한 웨딩홀 (priceBreakdown 포함). 상위에서 지역·검색 필터를 적용해 넘긴다
+export default function HallRangeCompare({ halls }) {
   const { guestCount } = useBudget();
-  const halls = EXCEL_HALLS;
-  const [selected, setSelected] = useState(new Set(halls.map((h) => h.id)));
+  // 체크 해제한 홀만 기억 — 필터가 바뀌거나 API 데이터가 늦게 와도 기본은 전체 선택
+  const [excluded, setExcluded] = useState(() => new Set());
   const [guests, setGuests] = useState(guestCount);
+  const [shown, setShown] = useState(PAGE);
 
   useEffect(() => {
     setGuests(guestCount);
   }, [guestCount]);
 
+  // 필터 결과가 바뀌면 처음 PAGE 개부터 다시
+  useEffect(() => setShown(PAGE), [halls]);
+
+  const isSelected = (id) => !excluded.has(id);
   const toggle = (id) =>
-    setSelected((prev) => {
+    setExcluded((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
 
-  const toggleAll = () => {
-    if (selected.size === halls.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(halls.map((h) => h.id)));
-    }
-  };
+  const allSelected = halls.every((h) => isSelected(h.id));
+  const toggleAll = () =>
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      halls.forEach((h) => (allSelected ? next.add(h.id) : next.delete(h.id)));
+      return next;
+    });
 
   const ranges = halls.map((h) => ({ hall: h, range: calcRange(h, guests) }));
-  const selectedRanges = ranges.filter((r) => selected.has(r.hall.id));
+  const selectedRanges = ranges.filter((r) => isSelected(r.hall.id));
   const globalMax = Math.max(...ranges.map((r) => r.range.max), 1);
+  const visible = ranges.slice(0, shown);
 
   return (
     <div className="space-y-5">
@@ -80,7 +83,7 @@ export default function HallRangeCompare() {
           onClick={toggleAll}
           className="text-xs px-3 py-1.5 rounded-lg border border-warm-beige/50 text-charcoal/40 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
         >
-          {selected.size === halls.length ? '전체 해제' : '전체 선택'}
+          {allSelected ? '전체 해제' : '전체 선택'}
         </button>
       </div>
 
@@ -102,8 +105,11 @@ export default function HallRangeCompare() {
 
       {/* Rows */}
       <div className="space-y-3">
-        {ranges.map(({ hall, range }) => {
-          const isSelected = selected.has(hall.id);
+        {halls.length === 0 && (
+          <p className="text-sm text-charcoal/40 text-center py-8">조건에 맞는 웨딩홀이 없어요</p>
+        )}
+        {visible.map(({ hall, range }) => {
+          const selected = isSelected(hall.id);
           const minPct = (range.min / globalMax) * 100;
           const maxPct = (range.max / globalMax) * 100;
           const hasRange = range.min !== range.max;
@@ -113,7 +119,7 @@ export default function HallRangeCompare() {
               key={hall.id}
               onClick={() => toggle(hall.id)}
               className={`p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
-                isSelected
+                selected
                   ? 'border-soft-gold/40 bg-white shadow-sm'
                   : 'border-transparent bg-warm-beige/10 opacity-40'
               }`}
@@ -122,18 +128,18 @@ export default function HallRangeCompare() {
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
-                  checked={isSelected}
+                  checked={selected}
                   onChange={() => toggle(hall.id)}
                   onClick={(e) => e.stopPropagation()}
                   className="w-4 h-4 accent-amber-500 shrink-0"
                 />
-                <span className="font-semibold text-charcoal text-sm w-36 shrink-0 truncate">
-                  {hall.name}
+                <span className="font-semibold text-charcoal text-sm w-36 shrink-0 truncate" title={hall.name}>
+                  {displayName(hall.name)}
                 </span>
 
                 {/* Range bar */}
                 <div className="flex-1 relative h-5 bg-warm-beige/30 rounded-full overflow-visible">
-                  {isSelected && (
+                  {selected && (
                     <>
                       {/* Range fill */}
                       <div
@@ -172,7 +178,7 @@ export default function HallRangeCompare() {
               </div>
 
               {/* Breakdown row */}
-              {isSelected && (
+              {selected && (
                 <div className="mt-2.5 ml-7 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-charcoal/40">
                   <span>
                     🍽 식대 {fmtRange(range.food.min, range.food.max)}
@@ -193,6 +199,16 @@ export default function HallRangeCompare() {
           );
         })}
       </div>
+
+      {shown < ranges.length && (
+        <button
+          type="button"
+          onClick={() => setShown((n) => n + PAGE)}
+          className="w-full py-2.5 text-sm border-2 border-dashed border-warm-beige/60 rounded-2xl text-charcoal/50 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
+        >
+          더 보기 ({shown}/{ranges.length})
+        </button>
+      )}
 
       {/* Summary bar: selected halls min/max */}
       {selectedRanges.length > 0 && (
