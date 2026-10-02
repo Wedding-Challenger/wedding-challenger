@@ -108,24 +108,34 @@ export default function BudgetCalculator({ adsEnabled }) {
     pendingScroll.current = null;
   }, [hydrated, onboardingComplete]);
 
-  const handleReset = () => {
-    dispatch({ type: 'RESET' });
-    navigate('/calc');
+  const handleClear = () => {
+    if (window.confirm('담아 둔 웨딩홀·스드메·스냅을 모두 비울까요? 예산과 하객 수는 그대로 둡니다.')) {
+      dispatch({ type: 'CLEAR_SELECTIONS' });
+    }
   };
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">
       {/* 저장된 온보딩 값을 읽은 뒤에만 띄워 재방문 때 깜빡이지 않게 한다. 사전 렌더링에는 계산기 본문이 들어간다 */}
       {hydrated && !onboardingComplete && <Onboarding picked={pick?.label} />}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <h1 className="text-2xl font-bold text-charcoal">웨딩 견적 계산기</h1>
-        <button
-          onClick={handleReset}
-          className="text-xs px-3 py-1.5 rounded-lg border border-warm-beige/50 text-charcoal/40 hover:text-deep-rose hover:border-deep-rose/30 transition-all"
-          title="예산·하객 다시 설정"
-        >
-          ↺ 초기설정
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => dispatch({ type: 'REOPEN_ONBOARDING' })}
+            className="text-xs px-3 py-1.5 rounded-lg border border-warm-beige/50 text-charcoal/50 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
+            title="담아 둔 견적은 그대로 두고 예산·하객 수만 다시 설정"
+          >
+            ✎ 예산·하객 다시 설정
+          </button>
+          <button
+            onClick={handleClear}
+            className="text-xs px-3 py-1.5 rounded-lg border border-warm-beige/50 text-charcoal/40 hover:text-deep-rose hover:border-deep-rose/30 transition-all"
+            title="예산·하객 수는 그대로 두고 담아 둔 항목만 비우기"
+          >
+            ↺ 견적 비우기
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
