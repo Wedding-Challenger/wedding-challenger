@@ -17,11 +17,13 @@ const GUEST_OPTIONS = [
 ];
 
 export default function Onboarding({ picked }) {
-  const { dispatch } = useBudget();
-  const [step, setStep] = useState(0);
-  const [budget, setBudget] = useState(50000000);
-  const [guestCount, setGuestCount] = useState(200);
-  const [customBudget, setCustomBudget] = useState('');
+  const { dispatch, reopened, totalBudget, guestCount: currentGuests } = useBudget();
+  // 다시 설정할 때는 인사 단계를 건너뛰고 현재 값을 채워 둔다
+  const isPreset = BUDGET_OPTIONS.some((o) => o.value === totalBudget);
+  const [step, setStep] = useState(reopened ? 1 : 0);
+  const [budget, setBudget] = useState(isPreset ? totalBudget : 50000000);
+  const [guestCount, setGuestCount] = useState(currentGuests);
+  const [customBudget, setCustomBudget] = useState(reopened && !isPreset ? String(totalBudget) : '');
 
   const handleComplete = () => {
     const finalBudget = customBudget ? parseInt(customBudget) : budget;
@@ -32,7 +34,18 @@ export default function Onboarding({ picked }) {
 
   return (
     <div className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
+        {reopened && (
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'CANCEL_ONBOARDING' })}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full text-charcoal/40 hover:text-charcoal hover:bg-warm-beige/30 transition-all"
+            aria-label="닫기 (이전 설정 유지)"
+            title="닫기 (이전 설정 유지)"
+          >
+            ✕
+          </button>
+        )}
         {/* Progress */}
         <div className="flex gap-1 p-6 pb-0">
           {[0, 1, 2].map((i) => (
