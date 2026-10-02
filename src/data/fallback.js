@@ -6,6 +6,8 @@ import { weddingHalls, studios, dresses, makeups, snaps, rings, bouquets, hanbok
 export const FALLBACK_HALLS = weddingHalls.map((h) => ({
   ...h,
   homepage: h.homepage === 'https://example.com' ? null : h.homepage,
+  // 샘플에는 대관료 정보가 없다
+  rentDisclosed: false,
   priceBreakdown: {
     food: { min: h.pricePerPerson, max: h.pricePerPerson },
     rent: { min: 0, max: 0 },

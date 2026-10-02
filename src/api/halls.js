@@ -17,6 +17,8 @@ export function normalizeHall(h) {
     availableTimes: h.availableTimes ?? [],
     capacity: { min: h.capacityMin ?? null, max: h.capacityMax ?? null },
     pricePerPerson: h.pricePerPerson ?? h.foodMin ?? 0,
+    // 조사 자료에 대관료가 없으면 false (0원 '무료'와 구분). 계산은 0으로 한다
+    rentDisclosed: h.rentMin != null,
     priceBreakdown: {
       food: range(h.foodMin ?? h.pricePerPerson, h.foodMax),
       rent: range(h.rentMin, h.rentMax),
