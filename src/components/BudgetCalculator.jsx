@@ -11,7 +11,8 @@ import { AD_SLOTS } from '../config/ads';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getHalls } from '../api/halls';
 import HallFilter from './HallFilter';
-import { filterHalls } from '../lib/halls';
+import { budgetFilter, filterHalls, hallArea } from '../lib/halls';
+import { ConditionChip, ConditionPanel, NoHallResults } from './BudgetConditions';
 import { FALLBACK_HALLS } from '../data/fallback';
 
 function HallSection() {
@@ -19,14 +20,25 @@ function HallSection() {
   const [viewMode, setViewMode] = useState('card');
   const [area, setArea] = useState(null);
   const [query, setQuery] = useState('');
-  const filtered = useMemo(() => filterHalls(weddingHalls, { area, query }), [weddingHalls, area, query]);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const { guestCount, rentRange, foodRange, getHallBudget } = useBudget();
+  const hallBudget = getHallBudget();
+
+  // 돈 조건 → 지역 칩 → 검색 순서. 지역 칩 숫자도 돈 조건을 통과한 웨딩홀 기준
+  const { passed, excludedBy } = useMemo(
+    () => budgetFilter(weddingHalls, { hallBudget, guestCount, rentRange, foodRange }),
+    [weddingHalls, hallBudget, guestCount, rentRange, foodRange],
+  );
+  // 고른 지역이 조건 때문에 사라지면 전체로 본다
+  const activeArea = area && passed.some((h) => hallArea(h) === area) ? area : null;
+  const filtered = useMemo(() => filterHalls(passed, { area: activeArea, query }), [passed, activeArea, query]);
 
   useEffect(() => {
     getHalls().then(setWeddingHalls).catch(console.error);
   }, []);
 
   return (
-    <section id="halls">
+    <section id="halls" className="scroll-mt-24">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <span className="w-10 h-10 bg-soft-gold/10 rounded-xl flex items-center justify-center text-lg">🏛</span>
@@ -52,18 +64,20 @@ function HallSection() {
       </div>
 
       <HallFilter
-        halls={weddingHalls}
-        area={area}
+        halls={passed}
+        area={activeArea}
         onAreaChange={setArea}
         query={query}
         onQueryChange={setQuery}
         resultCount={filtered.length}
+        total={weddingHalls.length}
+        leading={<ConditionChip open={panelOpen} onToggle={() => setPanelOpen((v) => !v)} />}
       />
+      {panelOpen && <ConditionPanel onClose={() => setPanelOpen(false)} />}
 
-      {viewMode === 'card' ? (
-        filtered.length === 0 ? (
-          <p className="text-sm text-charcoal/40 text-center py-8">조건에 맞는 웨딩홀이 없어요</p>
-        ) : (
+      {filtered.length === 0 ? (
+        <NoHallResults excludedBy={excludedBy} budgetPassedCount={passed.length} hallBudget={hallBudget} onEdit={() => setPanelOpen(true)} />
+      ) : viewMode === 'card' ? (
         <HorizontalScroll>
           {filtered.map((hall) => (
             <div key={hall.id} className="min-w-[300px] max-w-[300px] shrink-0">
@@ -71,7 +85,6 @@ function HallSection() {
             </div>
           ))}
         </HorizontalScroll>
-        )
       ) : (
         <HallRangeCompare halls={filtered} />
       )}
@@ -142,7 +155,7 @@ export default function BudgetCalculator({ adsEnabled }) {
         <div className="flex-1 min-w-0 space-y-12">
           <HallSection />
 
-          <section id="sdme">
+          <section id="sdme" className="scroll-mt-24">
             <div className="flex items-center gap-3 mb-6">
               <span className="w-10 h-10 bg-soft-gold/10 rounded-xl flex items-center justify-center text-lg">✨</span>
               <div>

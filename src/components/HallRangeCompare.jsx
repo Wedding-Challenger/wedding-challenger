@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBudget } from '../context/BudgetContext';
-import { displayName } from '../lib/halls';
+import { displayName, rentDisclosed } from '../lib/halls';
 
 // 목록이 길어 처음에는 이만큼만 그리고 '더 보기'로 늘린다
 const PAGE = 20;
@@ -183,10 +183,14 @@ export default function HallRangeCompare({ halls }) {
                   <span>
                     🍽 식대 {fmtRange(range.food.min, range.food.max)}
                   </span>
-                  {range.rent.max > 0 && (
+                  {!rentDisclosed(hall) ? (
+                    <span>🏛 대관료 미공개</span>
+                  ) : range.rent.max > 0 ? (
                     <span>
                       🏛 대관료 {fmtRange(range.rent.min, range.rent.max)}
                     </span>
+                  ) : (
+                    <span>🏛 대관료 무료</span>
                   )}
                   {range.deco.max > 0 && (
                     <span>
