@@ -1,13 +1,16 @@
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useEffect, useReducer } from 'react';
 import { STUDIO_STATS, DRESS_STATS, MAKEUP_STATS, getRange } from '../data/sdmeStats';
+import { loadBudget, saveBudget } from '../lib/budgetStorage';
 
 const BudgetContext = createContext();
 
 const initialState = {
-  // Onboarding
-  totalBudget: 0,
+  // Onboarding — 기본값은 온보딩 기본 선택(5천만원·200명)과 같다
+  totalBudget: 50000000,
   guestCount: 200,
   onboardingComplete: false,
+  // 저장된 온보딩 값을 읽었는지. 사전 렌더링·첫 렌더는 false 라 서버 HTML 과 어긋나지 않는다
+  hydrated: false,
   // Selections
   selectedHall: null,
   selectedStudio: null,
@@ -37,6 +40,8 @@ function budgetReducer(state, action) {
       return { ...state, totalBudget: action.payload };
     case 'SET_GUEST_COUNT':
       return { ...state, guestCount: action.payload };
+    case 'RESTORE':
+      return { ...state, ...action.payload, hydrated: true };
     case 'COMPLETE_ONBOARDING':
       return { ...state, onboardingComplete: true, totalBudget: action.payload.budget, guestCount: action.payload.guestCount };
     case 'SELECT_HALL':
@@ -98,7 +103,7 @@ function budgetReducer(state, action) {
     case 'TOGGLE_MAKEUP':
       return { ...state, includeMakeup: action.payload, selectedMakeup: action.payload ? state.selectedMakeup : null };
     case 'RESET':
-      return initialState;
+      return { ...initialState, hydrated: true };
     default:
       return state;
   }
@@ -106,6 +111,16 @@ function budgetReducer(state, action) {
 
 export function BudgetProvider({ children }) {
   const [state, dispatch] = useReducer(budgetReducer, initialState);
+
+  // 하이드레이션 뒤 1회 저장값 복원 — 렌더 중에 읽으면 서버 HTML 과 어긋난다
+  useEffect(() => {
+    dispatch({ type: 'RESTORE', payload: loadBudget() ?? {} });
+  }, []);
+
+  const { hydrated, totalBudget, guestCount, onboardingComplete } = state;
+  useEffect(() => {
+    if (hydrated) saveBudget({ totalBudget, guestCount, onboardingComplete });
+  }, [hydrated, totalBudget, guestCount, onboardingComplete]);
 
   const getHallCost = () => {
     if (!state.selectedHall) return 0;
