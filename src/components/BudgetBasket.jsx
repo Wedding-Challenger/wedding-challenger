@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { displayName } from '../lib/halls';
 import { useBudget } from '../context/BudgetContext';
 
 function formatWon(n) {
@@ -26,7 +27,7 @@ export default function BudgetBasket() {
   const remaining = getRemainingBudget();
 
   const items = [
-    selectedHall && { label: `🏛 ${selectedHall.name}`, detail: `${guestCount}명 × ${formatWon(selectedHall.pricePerPerson)}원`, cost: getHallCost() },
+    selectedHall && { label: `🏛 ${displayName(selectedHall.name)}`, detail: `${guestCount}명 × ${formatWon(selectedHall.pricePerPerson)}원`, cost: getHallCost() },
     includeStudio && selectedStudio && { label: `📸 ${selectedStudio.name}`, cost: getStudioCost() },
     includeDress && selectedDress && { label: `👗 ${selectedDress.name}`, cost: getDressCost() },
     includeMakeup && selectedMakeup && { label: `💄 ${selectedMakeup.name}`, cost: getMakeupCost() },

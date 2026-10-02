@@ -1,4 +1,6 @@
 import { useBudget } from '../context/BudgetContext';
+import HallThumb from './HallThumb';
+import { displayName } from '../lib/halls';
 
 function formatPrice(n) {
   if (n >= 10000) return (n / 10000).toFixed(0) + '만';
@@ -32,11 +34,7 @@ export default function WeddingHallCard({ hall }) {
     >
       {/* Image */}
       <div className="relative h-48 overflow-hidden">
-        <img
-          src={hall.image}
-          alt={hall.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-        />
+        <HallThumb hall={hall} className="group-hover:scale-105 transition-transform duration-500" />
         {hall.type && (
           <div className="absolute top-3 left-3 flex gap-2">
             <span className="bg-white/90 backdrop-blur-sm text-xs font-semibold px-3 py-1.5 rounded-full text-charcoal">
@@ -61,7 +59,7 @@ export default function WeddingHallCard({ hall }) {
       {/* Info */}
       <div className="p-5 space-y-3">
         <div>
-          <h3 className="font-bold text-lg text-charcoal">{hall.name}</h3>
+          <h3 className="font-bold text-lg text-charcoal truncate" title={hall.name}>{displayName(hall.name)}</h3>
           <p className="text-charcoal/50 text-sm">{hall.location}</p>
         </div>
 
