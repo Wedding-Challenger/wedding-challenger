@@ -80,3 +80,41 @@ export function hallIllustration(hall) {
   const key = AREA_ILLUSTRATIONS[hallArea(hall)] ?? 'nationwide';
   return `${ILLUSTRATION_BASE}/regions/${key}.webp`;
 }
+
+// ── 돈 조건 필터 (계산기 전용) ──────────────────────────────────────────
+// 웨딩홀 가격 범위가 사용자 범위에 맞는지. user=null 은 상관없음.
+// 'inside'(기본, 2026-10-02 확정): 웨딩홀 [min,max] 가 사용자 범위 안에 완전히 들어와야 통과
+// 'overlap': 두 범위가 조금이라도 겹치면 통과 (써 보고 너무 빡빡하면 이걸로 바꾼다)
+export function rangeMatches(hallRange, user, mode = 'inside') {
+  if (!user) return true;
+  const lo = hallRange.min;
+  const hi = hallRange.max ?? hallRange.min;
+  if (mode === 'overlap') {
+    return (user.max == null || lo <= user.max) && (user.min == null || hi >= user.min);
+  }
+  return (user.min == null || lo >= user.min) && (user.max == null || hi <= user.max);
+}
+
+// 하객 수 기준 웨딩홀 최소 예상 총액 (식대 최저 × 하객 + 대관료 최저 + 데코 최저)
+export function hallMinTotal(hall, guestCount) {
+  const { food, rent, deco } = hall.priceBreakdown;
+  return food.min * guestCount + (rent.min ?? 0) + (deco.min ?? 0);
+}
+
+// 대관료가 공개되지 않은 웨딩홀(조사 자료에 값 없음) — 대관료 조건과 상관없이 보여 준다
+export const rentDisclosed = (hall) => hall.rentDisclosed !== false;
+
+// hallBudget: 웨딩홀에 쓸 수 있는 남은 예산 (전체 예산 − 웨딩홀 외 바구니 항목 최소 금액). null 이면 예산 비교 안 함
+// excludedBy 는 조건별로 걸린 수 (한 웨딩홀이 여러 조건에 걸리면 각각 센다)
+export function budgetFilter(halls, { hallBudget = null, guestCount, rentRange = null, foodRange = null, mode = 'inside' } = {}) {
+  const excludedBy = { total: 0, rent: 0, food: 0 };
+  const passed = [];
+  for (const h of halls) {
+    let ok = true;
+    if (!rangeMatches(h.priceBreakdown.food, foodRange, mode)) { excludedBy.food++; ok = false; }
+    if (rentDisclosed(h) && !rangeMatches(h.priceBreakdown.rent, rentRange, mode)) { excludedBy.rent++; ok = false; }
+    if (hallBudget !== null && hallMinTotal(h, guestCount) > hallBudget) { excludedBy.total++; ok = false; }
+    if (ok) passed.push(h);
+  }
+  return { passed, excludedBy };
+}
