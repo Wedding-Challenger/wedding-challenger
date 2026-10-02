@@ -47,3 +47,36 @@ export function filterHalls(halls, { area = null, query = '' } = {}) {
 }
 
 export const hasPhoto = (hall) => !!hall.image && hall.image !== DEFAULT_HALL_IMAGE;
+
+// 사진이 없는 웨딩홀에 쓰는 AI 일러스트 (원본: 레포 image/ 폴더). 실제 사진이 아니므로 화면에 '일러스트'로 표시한다.
+const ILLUSTRATION_BASE = '/images/halls';
+
+// 전용 일러스트가 있는 업체 (정규화 이름에 포함되면 사용)
+const VENUE_ILLUSTRATIONS = [
+  ['더파티움', 'the-partium'],
+  ['제이케이아트', 'jk-art'],
+  ['플로팅아일랜드', 'floating-island'],
+  ['마리나파크웨딩홀', 'marina-park'],
+  ['소노펠리체컨벤션', 'sono-felice'],
+];
+
+// 지역(hallArea) → 지역 일러스트
+const AREA_ILLUSTRATIONS = {
+  서울: 'seoul', 경기: 'gyeonggi', 인천: 'incheon', 부산: 'busan', 대구: 'daegu', 대전: 'daejeon',
+  울산: 'ulsan', 광주: 'gwangju', 제주: 'jeju', 강원: 'gangwon',
+  충북: 'chungcheong', 충남: 'chungcheong', 세종: 'chungcheong',
+  전북: 'jeolla', 전남: 'jeolla', 전남광주: 'jeolla',
+  경북: 'gyeongsang', 경남: 'gyeongsang',
+};
+
+const compact = (s) => displayName(s).replace(/\s+/g, '');
+
+export function hallIllustration(hall) {
+  const name = compact(hall.name ?? '');
+  const venue = VENUE_ILLUSTRATIONS.find(([key]) => name.includes(key));
+  if (venue) return `${ILLUSTRATION_BASE}/venues/${venue[1]}.webp`;
+  // 참가격 지역 구분은 서울을 강남/강남 외로 나눈다
+  if (hall.region === '서울(강남)') return `${ILLUSTRATION_BASE}/regions/seoul-gangnam.webp`;
+  const key = AREA_ILLUSTRATIONS[hallArea(hall)] ?? 'nationwide';
+  return `${ILLUSTRATION_BASE}/regions/${key}.webp`;
+}
