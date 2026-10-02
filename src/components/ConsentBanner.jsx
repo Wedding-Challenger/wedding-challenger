@@ -13,7 +13,7 @@ export default function ConsentBanner({ open, onDecide }) {
         <div className="flex-1">
           <h3 className="text-charcoal font-semibold mb-1">쿠키 및 광고 동의</h3>
           <p className="text-sm text-charcoal/60">
-            웨딩첼린저는 서비스 운영(필수)과 맞춤 광고(선택)를 위해 쿠키를 사용합니다.
+            웨딩챌린저는 서비스 운영(필수)과 맞춤 광고(선택)를 위해 쿠키를 사용합니다.
             자세한 내용은{' '}
             <Link to="/privacy" className="text-deep-rose underline">개인정보처리방침</Link> 참조.
           </p>

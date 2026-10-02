@@ -108,7 +108,7 @@ export default function Guide() {
         <p>
           위 타임라인은 일반적인 가이드입니다. 예식장·스드메 업체 사정, 예산, 지역에 따라
           일정이 달라질 수 있으니 담당자와 직접 확인하세요.
-          웨딩첼린저의{' '}
+          웨딩챌린저의{' '}
           <a href="/checklist" className="text-deep-rose underline">체크리스트</a>도 함께 활용해 보세요.
         </p>
       </footer>

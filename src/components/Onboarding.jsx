@@ -58,7 +58,7 @@ export default function Onboarding({ picked }) {
           {step === 0 && (
             <div className="text-center space-y-6 animate-fade-in">
               <div className="text-5xl">💍</div>
-              <h2 className="text-2xl font-bold text-charcoal">웨딩첼린저에 오신 것을 환영합니다</h2>
+              <h2 className="text-2xl font-bold text-charcoal">웨딩챌린저에 오신 것을 환영합니다</h2>
               <p className="text-charcoal/60">예산에 맞는 완벽한 웨딩을 함께 설계해요.<br/>몇 가지만 알려주시면 맞춤 견적을 준비해 드릴게요.</p>
               {picked && (
                 <p className="text-sm text-soft-gold bg-soft-gold/10 rounded-xl px-4 py-2.5">
