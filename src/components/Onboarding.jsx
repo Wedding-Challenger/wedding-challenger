@@ -16,7 +16,7 @@ const GUEST_OPTIONS = [
   { label: '300명 이상', value: 400, icon: '👥' },
 ];
 
-export default function Onboarding() {
+export default function Onboarding({ picked }) {
   const { dispatch } = useBudget();
   const [step, setStep] = useState(0);
   const [budget, setBudget] = useState(50000000);
@@ -47,6 +47,11 @@ export default function Onboarding() {
               <div className="text-5xl">💍</div>
               <h2 className="text-2xl font-bold text-charcoal">웨딩첼린저에 오신 것을 환영합니다</h2>
               <p className="text-charcoal/60">예산에 맞는 완벽한 웨딩을 함께 설계해요.<br/>몇 가지만 알려주시면 맞춤 견적을 준비해 드릴게요.</p>
+              {picked && (
+                <p className="text-sm text-soft-gold bg-soft-gold/10 rounded-xl px-4 py-2.5">
+                  「<span className="font-semibold">{picked}</span>」 견적을 바로 이어서 볼 수 있게 준비해 둘게요
+                </p>
+              )}
               <button
                 onClick={() => setStep(1)}
                 className="w-full py-4 bg-soft-gold text-white rounded-2xl font-semibold text-lg hover:bg-soft-gold/90 transition-all active:scale-[0.98]"
