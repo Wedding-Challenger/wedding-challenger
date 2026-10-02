@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { areaCounts, displayName, filterHalls, hallArea, hasPhoto } from '../halls';
+import { areaCounts, displayName, filterHalls, hallArea, hallIllustration, hasPhoto } from '../halls';
 
 describe('displayName', () => {
   it.each([
@@ -49,5 +49,22 @@ describe('지역·필터', () => {
     expect(hasPhoto({ image: '/images/wedding/hall-default.svg' })).toBe(false);
     expect(hasPhoto({ image: null })).toBe(false);
     expect(hasPhoto({ image: 'https://cdn.example/hall.jpg' })).toBe(true);
+  });
+});
+
+describe('hallIllustration', () => {
+  const ill = (h) => hallIllustration(h).replace('/images/halls/', '');
+  it('전용 일러스트가 있는 업체는 이름(법인 표기 무시)으로 찾는다', () => {
+    expect(ill({ name: '(주)플로팅아일랜드', location: '서울 서초구', region: '서울(강남)' })).toBe('venues/floating-island.webp');
+    expect(ill({ name: '마리나파크 웨딩홀', location: '서울 서초구' })).toBe('venues/marina-park.webp');
+    expect(ill({ name: '소노펠리체 컨벤션((주)소노인터내셔널 삼성지점)', location: '서울 강남구' })).toBe('venues/sono-felice.webp');
+  });
+  it('나머지는 지역 일러스트, 서울은 강남/강남 외 구분', () => {
+    expect(ill({ name: 'A', location: '서울 강남구', region: '서울(강남)' })).toBe('regions/seoul-gangnam.webp');
+    expect(ill({ name: 'B', location: '서울 마포구', region: '서울(강남 외)' })).toBe('regions/seoul.webp');
+    expect(ill({ name: 'C', location: '전남광주 여수시', region: '전남광주' })).toBe('regions/jeolla.webp');
+    expect(ill({ name: 'D', location: '광주 서구' })).toBe('regions/gwangju.webp');
+    expect(ill({ name: 'E', location: '세종' })).toBe('regions/chungcheong.webp');
+    expect(ill({ name: 'F', location: null })).toBe('regions/nationwide.webp');
   });
 });
