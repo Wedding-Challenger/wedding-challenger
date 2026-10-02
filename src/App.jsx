@@ -26,7 +26,7 @@ function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
         <NavLink to="/" className="flex items-center gap-2 sm:gap-3 shrink-0 hover:opacity-80 transition-opacity">
           <span className="text-2xl">💍</span>
-          <h1 className="sr-only min-[400px]:not-sr-only text-lg sm:text-xl font-bold text-charcoal whitespace-nowrap">웨딩첼린저</h1>
+          <h1 className="sr-only min-[400px]:not-sr-only text-lg sm:text-xl font-bold text-charcoal whitespace-nowrap">웨딩챌린저</h1>
         </NavLink>
         <nav className="flex items-center gap-0.5 sm:gap-1 bg-warm-beige/20 rounded-xl p-1">
           <NavLink to="/" end className={navLinkClass}>홈</NavLink>
@@ -45,7 +45,7 @@ function Footer({ adsEnabled, onOpenConsent }) {
       <div className="max-w-7xl mx-auto px-6">
         <AdSlot enabled={adsEnabled} slot={AD_SLOTS.footer} format="horizontal" className="mb-6" />
         <div className="text-center text-sm text-charcoal/30 space-y-3">
-          <p>웨딩첼린저 — 예산에 맞는 완벽한 웨딩 플래닝</p>
+          <p>웨딩챌린저 — 예산에 맞는 완벽한 웨딩 플래닝</p>
           <nav className="flex items-center justify-center gap-4 text-charcoal/50">
             <Link to="/about" className="hover:text-deep-rose transition-colors">소개</Link>
             <span className="text-charcoal/20">|</span>
@@ -61,7 +61,7 @@ function Footer({ adsEnabled, onOpenConsent }) {
               광고 동의 설정
             </button>
           </nav>
-          <p className="text-xs text-charcoal/20">© 2026 웨딩첼린저. All rights reserved.</p>
+          <p className="text-xs text-charcoal/20">© 2026 웨딩챌린저. All rights reserved.</p>
         </div>
       </div>
     </footer>

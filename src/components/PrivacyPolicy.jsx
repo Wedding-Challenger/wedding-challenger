@@ -10,7 +10,7 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className="text-lg font-semibold text-charcoal mt-6 mb-2">1. 수집하는 개인정보 항목</h2>
         <p>
-          웨딩첼린저(이하 "서비스")는 회원가입을 요구하지 않으며, 사용자의 직접적인 식별 정보를
+          웨딩챌린저(이하 "서비스")는 회원가입을 요구하지 않으며, 사용자의 직접적인 식별 정보를
           수집하지 않습니다. 다만 서비스 이용 과정에서 다음 정보가 자동으로 수집될 수 있습니다.
         </p>
         <ul className="list-disc pl-5 mt-2 space-y-1">
