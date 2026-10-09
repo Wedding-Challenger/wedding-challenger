@@ -6,6 +6,7 @@ import AdSenseLoader from './components/AdSenseLoader';
 import AdSlot from './components/AdSlot';
 import { AD_SLOTS } from './config/ads';
 import { ROUTES } from './config/routes';
+import { adsEnabled } from './config/environment';
 import PublicLanding from './components/PublicLanding';
 import BudgetCalculator from './components/BudgetCalculator';
 import About from './components/About';
@@ -112,14 +113,17 @@ export default function App() {
     return () => window.removeEventListener('storage', onStorage);
   }, [consent.ads]);
 
+  // 광고는 운영 빌드 + 사용자 동의 둘 다 있어야 켠다
+  const adsAllowed = adsEnabled && consent.ads;
+
   return (
     <div className="min-h-screen">
-      <AdSenseLoader enabled={consent.ads} />
+      <AdSenseLoader enabled={adsAllowed} />
       <Header />
       <main>
         <Routes>
-          <Route path="/" element={<PublicLanding adsEnabled={consent.ads} />} />
-          <Route path="/calc" element={<BudgetCalculator adsEnabled={consent.ads} />} />
+          <Route path="/" element={<PublicLanding adsEnabled={adsAllowed} />} />
+          <Route path="/calc" element={<BudgetCalculator adsEnabled={adsAllowed} />} />
           <Route path="/about" element={<About />} />
           <Route path="/guide" element={<Guide />} />
           <Route path="/checklist" element={<Checklist />} />
@@ -127,7 +131,7 @@ export default function App() {
           <Route path="/terms" element={<Terms />} />
         </Routes>
       </main>
-      <Footer adsEnabled={consent.ads} onOpenConsent={() => setBannerOpen(true)} />
+      <Footer adsEnabled={adsAllowed} onOpenConsent={() => setBannerOpen(true)} />
       <ConsentBanner open={bannerOpen} onDecide={handleDecide} />
     </div>
   );
