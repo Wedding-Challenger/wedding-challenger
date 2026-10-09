@@ -34,6 +34,26 @@ function siteMeta(config) {
   }
 }
 
+// 관리 화면 주소(/admin, /admin/…)는 admin.html 셸로 보낸다. 배포에서는 public/_redirects 의 `/admin/* /admin 200` 과
+// Pages 의 /admin → admin.html 서빙이 같은 일을 한다. 확장자가 있는 경로(자산·소스)는 건드리지 않는다.
+export function rewriteAdminUrl(url) {
+  const pathname = url.split('?')[0]
+  if (!/^\/admin(\/|$)/.test(pathname)) return url
+  return pathname.slice('/admin'.length).includes('.') ? url : '/admin.html'
+}
+
+function adminShellDev() {
+  return {
+    name: 'wc-admin-shell-dev',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        req.url = rewriteAdminUrl(req.url)
+        next()
+      })
+    },
+  }
+}
+
 // envRoot 는 env 파일 위치(기본은 이 저장소). 테스트가 임시 디렉터리로 같은 프로세스 재평가를 확인할 때만 바꾼다.
 export function createViteConfig({ mode }, envRoot = root) {
   // mode 별 API·사이트 origin 을 검증한다. 허용 밖 조합(예: development 에 운영 API)은 dev 서버·빌드 모두 여기서 실패.
@@ -52,7 +72,13 @@ export function createViteConfig({ mode }, envRoot = root) {
   return {
     envDir: mode === 'test' ? false : envRoot,
     define,
-    plugins: [react(), tailwindcss(), siteMeta(config)],
+    plugins: [react(), tailwindcss(), siteMeta(config), adminShellDev()],
+    build: {
+      // 공개 index.html(사전 렌더링 템플릿)과 관리 셸 admin.html 을 따로 만든다. SSR 빌드는 build.ssr 진입점만 쓴다.
+      rolldownOptions: {
+        input: { main: path.join(root, 'index.html'), admin: path.join(root, 'admin.html') },
+      },
+    },
     server: {
       port: 5173,
       strictPort: true,

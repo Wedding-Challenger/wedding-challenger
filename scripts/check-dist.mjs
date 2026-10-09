@@ -2,6 +2,7 @@
 //   node scripts/check-dist.mjs production|staging [distDir]
 // 게시자 ID 기대값은 src/config/ads.js 를 import 해서 읽는다(ID 리터럴을 여기 두지 않는다).
 // 라우트 목록은 운영 원본 public/sitemap.xml 의 <loc> 에서 읽는다(사전 렌더링 라우트와 같은 목록).
+// 관리 셸 admin.html(빈 root·noindex·광고 없음)과 public/_redirects·_headers 의 /admin 규칙도 두 mode 모두 검사한다.
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -12,6 +13,23 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 export const DEV_ROBOTS = 'User-agent: *\nDisallow: /\n'
 export const NOINDEX_HEADER = 'X-Robots-Tag: noindex, nofollow'
+export const NO_STORE_HEADER = 'Cache-Control: no-store'
+// rewrite 는 이 한 줄만 둔다. /admin 은 Pages 가 admin.html 을 바로 서빙하므로 규칙을 따로 두지 않는다
+export const ADMIN_REDIRECT = '/admin/* /admin 200'
+export const ADMIN_HEADER_PATHS = ['/admin', '/admin/*', '/admin.html']
+
+// _headers 를 경로 블록으로 나눈다 (들여쓰지 않은 줄 = 경로, 들여쓴 줄 = 그 경로의 헤더)
+export function parseHeaders(text) {
+  const blocks = []
+  for (const line of text.split('\n')) {
+    if (!line.trim() || line.trim().startsWith('#')) continue
+    if (/^\s/.test(line)) blocks.at(-1)?.headers.push(line.trim())
+    else blocks.push({ path: line.trim(), headers: [] })
+  }
+  return blocks
+}
+
+const ruleLines = (text) => text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
 
 function routePaths() {
   const sitemap = readFileSync(path.join(root, 'public/sitemap.xml'), 'utf8')
@@ -33,7 +51,9 @@ export function checkDist(mode, dist = path.join(root, 'dist')) {
   const problems = []
   const expect = (ok, msg) => { if (!ok) problems.push(msg) }
 
-  for (const p of routePaths()) {
+  const paths = routePaths()
+  expect(!paths.some((p) => p.startsWith('/admin')), 'sitemap 에 /admin 경로')
+  for (const p of paths) {
     const file = htmlFile(p)
     if (!existsSync(path.join(dist, file))) { problems.push(`${file} 없음`); continue }
     const html = read(dist, file)
@@ -54,16 +74,35 @@ export function checkDist(mode, dist = path.join(root, 'dist')) {
 
   const has = (file) => existsSync(path.join(dist, file))
   const headers = has('_headers') ? read(dist, '_headers') : ''
+  const blocks = parseHeaders(headers)
+
+  if (!has('admin.html')) {
+    problems.push('admin.html 없음')
+  } else {
+    const admin = read(dist, 'admin.html')
+    expect(admin.includes('<div id="root"></div>'), 'admin.html: 빈 root 아님(사전 렌더링 본문)')
+    expect(metaContent(admin, 'name', 'robots') === 'noindex, nofollow', 'admin.html: robots 가 noindex, nofollow 아님')
+    expect(!admin.includes('google-adsense-account') && !admin.includes('googlesyndication'), 'admin.html: 광고 계정 meta 또는 광고 스크립트')
+    expect(!/%[A-Z_]+%/.test(admin), 'admin.html: 치환 안 된 자리표시자')
+  }
+  const redirects = has('_redirects') ? ruleLines(read(dist, '_redirects')) : []
+  expect(redirects.length === 1 && redirects[0] === ADMIN_REDIRECT, `_redirects 가 "${ADMIN_REDIRECT}" 한 줄이 아님`)
+  for (const p of ADMIN_HEADER_PATHS) {
+    const block = blocks.find((b) => b.path === p)
+    expect(block?.headers.includes(NO_STORE_HEADER) && block.headers.includes(NOINDEX_HEADER), `_headers 에 ${p} no-store·noindex 없음`)
+  }
   if (production) {
     expect(has('ads.txt') && read(dist, 'ads.txt') === `google.com, ${ADSENSE_PUBLISHER_ID}, DIRECT, f08c47fec0942fa0\n`, 'ads.txt 없음 또는 내용 불일치')
     expect(has('sitemap.xml') && read(dist, 'sitemap.xml') === read(path.join(root, 'public'), 'sitemap.xml'), 'sitemap.xml 이 운영 원본과 다름')
     expect(has('robots.txt') && read(dist, 'robots.txt') === read(path.join(root, 'public'), 'robots.txt'), 'robots.txt 가 운영 원본과 다름')
-    expect(!headers.includes('X-Robots-Tag'), '_headers 에 X-Robots-Tag')
+    // 운영은 관리 셸 경로만 noindex 를 허용한다
+    const outside = blocks.filter((b) => !ADMIN_HEADER_PATHS.includes(b.path) && b.headers.some((h) => h.startsWith('X-Robots-Tag')))
+    expect(outside.length === 0, `_headers 에 관리 셸 밖 X-Robots-Tag (${outside.map((b) => b.path).join(', ')})`)
   } else {
     expect(!has('ads.txt'), '개발 빌드에 ads.txt')
     expect(!has('sitemap.xml'), '개발 빌드에 sitemap.xml')
     expect(has('robots.txt') && read(dist, 'robots.txt') === DEV_ROBOTS, 'robots.txt 가 전체 차단이 아님')
-    expect(/^\/\*$/m.test(headers) && headers.includes(NOINDEX_HEADER), `_headers 에 /* ${NOINDEX_HEADER} 없음`)
+    expect(blocks.some((b) => b.path === '/*' && b.headers.includes(NOINDEX_HEADER)), `_headers 에 /* ${NOINDEX_HEADER} 없음`)
   }
 
   const assets = path.join(dist, 'assets')
