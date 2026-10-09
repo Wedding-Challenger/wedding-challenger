@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { budgetFilter, displayName } from '../lib/halls';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 
 function formatWon(n) {
   if (n >= 100000000) return (n / 100000000).toFixed(1) + '억';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import { getVendors } from '../api/vendors';
 import HorizontalScroll from './HorizontalScroll';
 import SdmeRangePicker from './SdmeRangePicker';
@@ -64,7 +64,7 @@ function CategoryToggle({ label, icon, enabled, onToggle }) {
 export default function SdmeCustomizer() {
   const {
     includeStudio, includeDress, includeMakeup, includeSnap, includeRing, includeBouquet, includeHanbok,
-    selectedStudio, selectedDress, selectedMakeup, selectedSnap, selectedRing, selectedBouquet, selectedHanbok,
+    selectedSnap, selectedRing, selectedBouquet, selectedHanbok,
     dispatch,
   } = useBudget();
 

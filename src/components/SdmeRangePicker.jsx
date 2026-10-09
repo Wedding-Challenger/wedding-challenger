@@ -1,4 +1,4 @@
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import { REGIONS, PCT_KEYS, PCT_LABELS, STUDIO_STATS, DRESS_STATS, MAKEUP_STATS, getRange } from '../data/sdmeStats';
 
 function fmt(n) {
