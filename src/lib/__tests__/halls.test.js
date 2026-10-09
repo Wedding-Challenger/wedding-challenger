@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { areaCounts, displayName, filterHalls, hallArea, hallIllustration, hasPhoto } from '../halls';
+import { NO_DISTRICT, areaCounts, displayName, districtCounts, filterHalls, hallArea, hallDistrict, hallIllustration, hasPhoto } from '../halls';
 
 describe('displayName', () => {
   it.each([
@@ -49,6 +49,55 @@ describe('지역·필터', () => {
     expect(hasPhoto({ image: '/images/wedding/hall-default.svg' })).toBe(false);
     expect(hasPhoto({ image: null })).toBe(false);
     expect(hasPhoto({ image: 'https://cdn.example/hall.jpg' })).toBe(true);
+  });
+});
+
+const districtHalls = [
+  { id: 1, location: '서울 강남구' },
+  { id: 2, location: '서울 강남구' },
+  { id: 3, location: '서울 서초구' },
+  { id: 4, location: '서울 마포구' },
+  { id: 5, location: '서울' },
+  { id: 6, location: '경남 창원시' },
+  { id: 7, location: '세종' },
+  { id: 8, location: '세종' },
+  { id: 9, location: '  서울   서초구  ' },
+];
+
+describe('시·군·구', () => {
+  it('위치 둘째 단어가 시·군·구, 없으면 null', () => {
+    expect(hallDistrict({ location: '서울 강남구' })).toBe('강남구');
+    expect(hallDistrict({ location: '  서울   서초구  ' })).toBe('서초구');
+    expect(hallDistrict({ location: '전남광주 여수시' })).toBe('여수시');
+    expect(hallDistrict({ location: '세종' })).toBeNull();
+    expect(hallDistrict({ location: '' })).toBeNull();
+    expect(hallDistrict({ location: null })).toBeNull();
+  });
+
+  it('시·도 안의 시·군·구를 많은 순(같으면 가나다)으로 세고, 시·군·구 없는 곳은 맨 뒤 기타로 묶는다', () => {
+    expect(districtCounts(districtHalls, '서울')).toEqual([
+      { district: '강남구', count: 2 },
+      { district: '서초구', count: 2 },
+      { district: '마포구', count: 1 },
+      { district: NO_DISTRICT, count: 1 },
+    ]);
+    expect(districtCounts(districtHalls, '경남')).toEqual([{ district: '창원시', count: 1 }]);
+    expect(districtCounts(districtHalls, '세종')).toEqual([{ district: NO_DISTRICT, count: 2 }]);
+    expect(districtCounts(districtHalls, '부산')).toEqual([]);
+  });
+
+  it('시·도와 함께 시·군·구로 거르고, 기타는 시·군·구 없는 것만', () => {
+    const ids = (opts) => filterHalls(districtHalls, opts).map((h) => h.id);
+    expect(ids({ area: '서울', district: '서초구' })).toEqual([3, 9]);
+    expect(ids({ area: '서울', district: NO_DISTRICT })).toEqual([5]);
+    expect(ids({ area: '세종', district: NO_DISTRICT })).toEqual([7, 8]);
+    // 시·도만 고르면 시·군·구 없는 곳도 보인다
+    expect(ids({ area: '서울' })).toEqual([1, 2, 3, 4, 5, 9]);
+    // 시·도 없이 시·군·구만 오면 무시한다
+    expect(ids({ district: '강남구' })).toHaveLength(districtHalls.length);
+    // 다른 시·도의 시·군·구를 고르면 비어 있다
+    expect(ids({ area: '경남', district: '강남구' })).toEqual([]);
+    expect(ids({ area: '서울', district: '강남구', query: '서초' })).toEqual([]);
   });
 });
 
