@@ -1,5 +1,8 @@
 // 사전 렌더링할 라우트와 페이지별 메타 정보. public/sitemap.xml 과 목록을 맞춘다.
-export const SITE_URL = 'https://wedding-challenger.com'
+// SITE_URL 은 빌드 mode 별 값(운영 https://wedding-challenger.com · 개발 develop alias)이다.
+import { siteUrl } from './environment'
+
+export const SITE_URL = siteUrl
 
 export const ROUTES = [
   {

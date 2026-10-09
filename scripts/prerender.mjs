@@ -1,5 +1,8 @@
 // vite build(클라이언트) + vite build --ssr(src/entry-server.jsx) 결과로 라우트별 정적 HTML 을 만든다.
 // '/' → dist/index.html, '/guide' → dist/guide.html (Cloudflare Pages 가 /guide 로 서빙, 끝 슬래시 리다이렉트 없음)
+// 라우트·SITE_URL·빌드 설정은 SSR 번들의 export 만 쓴다(원본 소스를 Node 에서 직접 import 하면 빌드 상수가 없다).
+// 색인 금지 빌드(production 이 아닌 mode)는 sitemap.xml 을 지우고 robots.txt 전체 차단·_headers noindex 를 만든다.
+// 보통 scripts/build.mjs 가 호출한다. 단독 실행: node scripts/prerender.mjs
 import { readFile, writeFile, rm } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
@@ -7,10 +10,6 @@ import path from 'node:path'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dist = path.join(root, 'dist')
 const ssrDir = path.join(root, 'dist-ssr')
-
-const { render } = await import(pathToFileURL(path.join(ssrDir, 'entry-server.js')).href)
-const { SITE_URL, ROUTES } = await import(pathToFileURL(path.join(root, 'src/config/routes.js')).href)
-const template = await readFile(path.join(dist, 'index.html'), 'utf8')
 
 const escape = (s) => s.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')
 
@@ -20,22 +19,40 @@ function setMeta(html, attr, key, value) {
   return html.replace(re, `$1${escape(value)}$2`)
 }
 
-for (const route of ROUTES) {
-  const url = SITE_URL + route.path
-  let html = template
-    .replace(/<title>[^<]*<\/title>/, `<title>${escape(route.title)}</title>`)
-    .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${url}$2`)
-    .replace('<div id="root"></div>', `<div id="root">${render(route.path)}</div>`)
-  html = setMeta(html, 'name', 'description', route.description)
-  html = setMeta(html, 'property', 'og:url', url)
-  html = setMeta(html, 'property', 'og:title', route.title)
-  html = setMeta(html, 'property', 'og:description', route.description)
-  html = setMeta(html, 'name', 'twitter:title', route.title)
-  html = setMeta(html, 'name', 'twitter:description', route.description)
+export async function prerender() {
+  const { render, siteUrl, routes, buildConfig } = await import(pathToFileURL(path.join(ssrDir, 'entry-server.js')).href)
+  const template = await readFile(path.join(dist, 'index.html'), 'utf8')
 
-  const file = route.path === '/' ? 'index.html' : `${route.path.slice(1)}.html`
-  await writeFile(path.join(dist, file), html)
-  console.log(`prerendered ${route.path} → dist/${file}`)
+  for (const route of routes) {
+    const url = siteUrl + route.path
+    let html = template
+      .replace(/<title>[^<]*<\/title>/, `<title>${escape(route.title)}</title>`)
+      .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${url}$2`)
+      .replace('<div id="root"></div>', `<div id="root">${render(route.path)}</div>`)
+    html = setMeta(html, 'name', 'description', route.description)
+    html = setMeta(html, 'property', 'og:url', url)
+    html = setMeta(html, 'property', 'og:title', route.title)
+    html = setMeta(html, 'property', 'og:description', route.description)
+    html = setMeta(html, 'name', 'twitter:title', route.title)
+    html = setMeta(html, 'name', 'twitter:description', route.description)
+
+    const file = route.path === '/' ? 'index.html' : `${route.path.slice(1)}.html`
+    await writeFile(path.join(dist, file), html)
+    console.log(`prerendered ${route.path} → dist/${file}`)
+  }
+
+  if (!buildConfig.indexable) {
+    // robots 차단만으로 비공개가 되지는 않는다 — 접근 제한(Access)은 별도 운영 작업
+    await rm(path.join(dist, 'sitemap.xml'), { force: true })
+    await writeFile(path.join(dist, 'robots.txt'), 'User-agent: *\nDisallow: /\n')
+    await writeFile(path.join(dist, '_headers'), '/*\n  X-Robots-Tag: noindex, nofollow\n')
+    console.log(`noindex (${buildConfig.stage}) → robots.txt 전체 차단, _headers X-Robots-Tag, sitemap.xml 제거`)
+  }
+
+  await rm(ssrDir, { recursive: true, force: true })
+  return buildConfig
 }
 
-await rm(ssrDir, { recursive: true, force: true })
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await prerender()
+}

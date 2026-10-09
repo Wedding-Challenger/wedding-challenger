@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { ADSENSE_CLIENT } from '../config/ads';
+import { adsEnabled } from '../config/environment';
 
-// enabled = 광고 동의(consent.ads). false 이거나 slot 이 비어 있으면 <ins> 도 push() 도 없음.
+// enabled = 광고 동의(consent.ads). 개발 빌드이거나 false 이거나 slot 이 비어 있으면 <ins> 도 push() 도 없음.
 export default function AdSlot({ enabled = false, slot, format = 'auto', className = '' }) {
-  const active = enabled && Boolean(slot);
+  const active = adsEnabled && enabled && Boolean(slot);
   useEffect(() => {
     if (!active) return;
     try {

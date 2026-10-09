@@ -24,6 +24,8 @@ const all = [
   ...rings.map((v) => ({ ...v, category: 'RING' })),
   ...bouquets.map((v) => ({ ...v, category: 'BOUQUET' })),
   ...hanboks.map((v) => ({ ...v, category: 'HANBOK' })),
+// id 는 백엔드가 새로 매기므로 일부러 버린다
+// eslint-disable-next-line no-unused-vars
 ].map(({ id, image, ...rest }) => ({ ...rest, imageUrl: image }));
 
 const outPath = resolve(
