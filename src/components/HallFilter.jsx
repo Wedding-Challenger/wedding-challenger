@@ -12,9 +12,10 @@ export default function HallFilter({
     `shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
       active ? 'bg-soft-gold text-white border-soft-gold' : 'bg-white text-charcoal/60 border-warm-beige/50 hover:border-soft-gold/40'
     }`;
+  // 옅은 배경 위 작은 글자라 글자색은 대비 4.5:1 이상(deep-gold 5.2:1, charcoal/70 5.2:1)
   const subChip = (active) =>
-    `shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
-      active ? 'bg-soft-gold/10 text-soft-gold border-soft-gold/50' : 'bg-white/70 text-charcoal/50 border-warm-beige/40 hover:border-soft-gold/30'
+    `shrink-0 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+      active ? 'bg-soft-gold/10 text-deep-gold border-soft-gold/50' : 'bg-white/70 text-charcoal/70 border-warm-beige/40 hover:border-soft-gold/30'
     }`;
   // 시·도를 바꾸거나 전체로 가면 시·군·구는 처음부터
   const pickArea = (a) => {
