@@ -8,6 +8,9 @@ const initialState = {
   // Onboarding — 기본값은 온보딩 기본 선택(5천만원·200명)과 같다
   totalBudget: 50000000,
   guestCount: 200,
+  // 웨딩홀 돈 조건 — { min, max } (각 null = 제한 없음), null = 상관없음
+  rentRange: null,
+  foodRange: null,
   onboardingComplete: false,
   // 저장된 온보딩 값을 읽었는지. 사전 렌더링·첫 렌더는 false 라 서버 HTML 과 어긋나지 않는다
   hydrated: false,
@@ -44,16 +47,23 @@ function budgetReducer(state, action) {
       return { ...state, guestCount: action.payload };
     case 'RESTORE':
       return { ...state, ...action.payload, hydrated: true };
-    case 'COMPLETE_ONBOARDING':
-      return { ...state, onboardingComplete: true, reopened: false, totalBudget: action.payload.budget, guestCount: action.payload.guestCount };
+    case 'COMPLETE_ONBOARDING': {
+      const { budget, guestCount, rentRange = null, foodRange = null } = action.payload;
+      return { ...state, onboardingComplete: true, reopened: false, totalBudget: budget, guestCount, rentRange, foodRange };
+    }
+    // 계산기 '조건' 패널에서 바로 고칠 때 (온보딩을 거치지 않음). 넘긴 키만 바꾼다
+    case 'SET_CONDITIONS':
+      return { ...state, ...action.payload };
+    case 'RESET_RANGES':
+      return { ...state, rentRange: null, foodRange: null };
     case 'REOPEN_ONBOARDING':
       return { ...state, onboardingComplete: false, reopened: true };
     case 'CANCEL_ONBOARDING':
       return { ...state, onboardingComplete: true, reopened: false };
     case 'CLEAR_SELECTIONS': {
       // 예산·하객·온보딩 상태는 두고 담은 항목·토글만 처음으로
-      const { totalBudget, guestCount, onboardingComplete, hydrated } = state;
-      return { ...initialState, totalBudget, guestCount, onboardingComplete, hydrated };
+      const { totalBudget, guestCount, rentRange, foodRange, onboardingComplete, hydrated } = state;
+      return { ...initialState, totalBudget, guestCount, rentRange, foodRange, onboardingComplete, hydrated };
     }
     case 'SELECT_HALL':
       return { ...state, selectedHall: action.payload };
@@ -126,10 +136,10 @@ export function BudgetProvider({ children }) {
     dispatch({ type: 'RESTORE', payload: loadBudget() ?? {} });
   }, []);
 
-  const { hydrated, totalBudget, guestCount, onboardingComplete } = state;
+  const { hydrated, totalBudget, guestCount, onboardingComplete, rentRange, foodRange } = state;
   useEffect(() => {
-    if (hydrated) saveBudget({ totalBudget, guestCount, onboardingComplete });
-  }, [hydrated, totalBudget, guestCount, onboardingComplete]);
+    if (hydrated) saveBudget({ totalBudget, guestCount, onboardingComplete, rentRange, foodRange });
+  }, [hydrated, totalBudget, guestCount, onboardingComplete, rentRange, foodRange]);
 
   const getHallCost = () => {
     if (!state.selectedHall) return 0;
@@ -184,6 +194,13 @@ export function BudgetProvider({ children }) {
     };
   };
 
+  // 웨딩홀을 뺀 바구니 항목(스드메·스냅·반지·부케·한복)의 최소 예상 금액
+  const getNonHallCostMin = () =>
+    getStudioCostRange().min + getDressCostRange().min + getMakeupCostRange().min
+    + getSnapCost() + getRingCost() + getBouquetCost() + getHanbokCost();
+  // 웨딩홀에 쓸 수 있는 남은 예산 — 웨딩홀 목록 예산 필터 기준 (2026-10-02 확정)
+  const getHallBudget = () => state.totalBudget - getNonHallCostMin();
+
   const getTotalCostRange = () => {
     const hall = getHallCostRange();
     const studio = getStudioCostRange();
@@ -217,6 +234,8 @@ export function BudgetProvider({ children }) {
     getDressCostRange,
     getMakeupCostRange,
     getTotalCostRange,
+    getNonHallCostMin,
+    getHallBudget,
     getRemainingBudget,
     getBudgetPercent,
     isOverBudget,

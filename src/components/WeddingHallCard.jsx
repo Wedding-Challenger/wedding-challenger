@@ -1,6 +1,6 @@
 import { useBudget } from '../context/BudgetContext';
 import HallThumb from './HallThumb';
-import { displayName } from '../lib/halls';
+import { displayName, rentDisclosed } from '../lib/halls';
 
 function formatPrice(n) {
   if (n >= 10000) return (n / 10000).toFixed(0) + '만';
@@ -88,9 +88,13 @@ export default function WeddingHallCard({ hall }) {
               </p>
             </div>
           </div>
-          {pb && (pb.rent.min > 0 || pb.deco.min > 0) && (
-            <div className="flex gap-2 text-[11px] text-charcoal/40">
-              {pb.rent.min > 0 && (
+          {pb && (
+            <div className="flex flex-wrap gap-x-2 text-[11px] text-charcoal/40">
+              {!rentDisclosed(hall) ? (
+                <span className="text-charcoal/50">대관료 미공개</span>
+              ) : pb.rent.max === 0 ? (
+                <span>대관료 무료</span>
+              ) : (
                 <span>대관료 {pb.rent.min === pb.rent.max ? formatPrice(pb.rent.min) : `${formatPrice(pb.rent.min)}~${formatPrice(pb.rent.max)}`}원</span>
               )}
               {pb.deco.min > 0 && (

@@ -1,40 +1,47 @@
 import { useState } from 'react';
 import { useBudget } from '../context/BudgetContext';
+import { FOOD_PRESETS, RENT_PRESETS } from '../lib/budgetPresets';
+import { BudgetInput, ConditionSummary, GuestInput, RangeInput } from './ConditionInputs';
 
-const BUDGET_OPTIONS = [
-  { label: '3,000만원 이하', value: 30000000 },
-  { label: '3,000~5,000만원', value: 50000000 },
-  { label: '5,000~7,000만원', value: 70000000 },
-  { label: '7,000만원~1억', value: 100000000 },
-  { label: '1억 이상', value: 150000000 },
+// 단계: 0 인사 → 1 전체 예산 → 2 대관료 범위 → 3 식대 범위 → 4 하객 수 (2026-10-02 형과 합의한 순서)
+const STEPS = [
+  null,
+  { title: '전체 예산을 알려주세요', desc: '웨딩홀 + 스드메 포함 총 예산이에요' },
+  { title: '대관료는 어느 정도 생각하세요?', desc: '이 범위 안에 대관료가 모두 들어오는 웨딩홀만 보여 드려요' },
+  { title: '1인 식대는 어느 정도 생각하세요?', desc: '이 범위 안에 식대가 모두 들어오는 웨딩홀만 보여 드려요' },
+  { title: '예상 하객 수를 알려주세요', desc: '웨딩홀 수용 인원과 식대를 계산할 때 사용돼요' },
 ];
-
-const GUEST_OPTIONS = [
-  { label: '100명 이하', value: 100, icon: '👥' },
-  { label: '100~200명', value: 200, icon: '👥' },
-  { label: '200~300명', value: 300, icon: '👥' },
-  { label: '300명 이상', value: 400, icon: '👥' },
-];
+const LAST = STEPS.length - 1;
 
 export default function Onboarding({ picked }) {
-  const { dispatch, reopened, totalBudget, guestCount: currentGuests } = useBudget();
+  const ctx = useBudget();
+  const { dispatch, reopened } = ctx;
   // 다시 설정할 때는 인사 단계를 건너뛰고 현재 값을 채워 둔다
-  const isPreset = BUDGET_OPTIONS.some((o) => o.value === totalBudget);
   const [step, setStep] = useState(reopened ? 1 : 0);
-  const [budget, setBudget] = useState(isPreset ? totalBudget : 50000000);
-  const [guestCount, setGuestCount] = useState(currentGuests);
-  const [customBudget, setCustomBudget] = useState(reopened && !isPreset ? String(totalBudget) : '');
+  const [totalBudget, setTotalBudget] = useState(ctx.totalBudget);
+  const [rentRange, setRentRange] = useState(ctx.rentRange);
+  const [foodRange, setFoodRange] = useState(ctx.foodRange);
+  const [guestCount, setGuestCount] = useState(ctx.guestCount);
 
   const handleComplete = () => {
-    const finalBudget = customBudget ? parseInt(customBudget) : budget;
-    dispatch({ type: 'COMPLETE_ONBOARDING', payload: { budget: finalBudget, guestCount } });
+    dispatch({ type: 'COMPLETE_ONBOARDING', payload: { budget: totalBudget, guestCount, rentRange, foodRange } });
   };
 
-  const formatPrice = (n) => new Intl.NumberFormat('ko-KR').format(n);
+  const nav = (
+    <div className="flex gap-3">
+      <button onClick={() => setStep(step - 1)} className="flex-1 py-4 border-2 border-warm-beige rounded-2xl font-semibold text-charcoal/60 hover:bg-warm-beige/20 transition-all">이전</button>
+      {step < LAST ? (
+        <button onClick={() => setStep(step + 1)} className="flex-1 py-4 bg-soft-gold text-white rounded-2xl font-semibold hover:bg-soft-gold/90 transition-all active:scale-[0.98]">다음</button>
+      ) : (
+        <button onClick={handleComplete} className="flex-1 py-4 bg-soft-gold text-white rounded-2xl font-semibold hover:bg-soft-gold/90 transition-all active:scale-[0.98]">견적 시작하기 ✨</button>
+      )}
+    </div>
+  );
 
+  // 쿠키 동의 배너(z-50, 화면 아래 고정)보다 위(z-60)에 둔다 — 단계가 늘어 길어진 창의 버튼을 배너가 가리지 않게. 배너는 닫은 뒤 다시 보인다
   return (
-    <div className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
+    <div className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] overflow-y-auto">
         {reopened && (
           <button
             type="button"
@@ -48,14 +55,13 @@ export default function Onboarding({ picked }) {
         )}
         {/* Progress */}
         <div className="flex gap-1 p-6 pb-0">
-          {[0, 1, 2].map((i) => (
+          {STEPS.map((_, i) => (
             <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-500 ${i <= step ? 'bg-soft-gold' : 'bg-warm-beige'}`} />
           ))}
         </div>
 
-        <div className="p-8">
-          {/* Step 0: Welcome */}
-          {step === 0 && (
+        <div className="p-6 sm:p-8">
+          {step === 0 ? (
             <div className="text-center space-y-6 animate-fade-in">
               <div className="text-5xl">💍</div>
               <h2 className="text-2xl font-bold text-charcoal">웨딩챌린저에 오신 것을 환영합니다</h2>
@@ -72,87 +78,22 @@ export default function Onboarding({ picked }) {
                 시작하기
               </button>
             </div>
-          )}
-
-          {/* Step 1: Budget */}
-          {step === 1 && (
+          ) : (
             <div className="space-y-6 animate-fade-in">
               <div>
-                <h2 className="text-xl font-bold text-charcoal">전체 예산을 알려주세요</h2>
-                <p className="text-charcoal/50 text-sm mt-1">웨딩홀 + 스드메 포함 총 예산이에요</p>
+                <h2 className="text-xl font-bold text-charcoal">{STEPS[step].title}</h2>
+                <p className="text-charcoal/50 text-sm mt-1">{STEPS[step].desc}</p>
               </div>
-              <div className="grid grid-cols-1 gap-3">
-                {BUDGET_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => { setBudget(opt.value); setCustomBudget(''); }}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                      budget === opt.value && !customBudget
-                        ? 'border-soft-gold bg-soft-gold/10 text-soft-gold font-semibold'
-                        : 'border-warm-beige/50 hover:border-soft-gold/30'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <div>
-                <label className="text-sm text-charcoal/50 mb-1 block">직접 입력</label>
-                <input
-                  type="text"
-                  placeholder="예: 45000000"
-                  value={customBudget}
-                  onChange={(e) => setCustomBudget(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-full p-4 border-2 border-warm-beige/50 rounded-2xl focus:outline-none focus:border-soft-gold transition-colors"
-                />
-                {customBudget && (
-                  <p className="text-sm text-soft-gold mt-1">{formatPrice(parseInt(customBudget || 0))}원</p>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep(0)} className="flex-1 py-4 border-2 border-warm-beige rounded-2xl font-semibold text-charcoal/60 hover:bg-warm-beige/20 transition-all">이전</button>
-                <button onClick={() => setStep(2)} className="flex-1 py-4 bg-soft-gold text-white rounded-2xl font-semibold hover:bg-soft-gold/90 transition-all active:scale-[0.98]">다음</button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Guest Count */}
-          {step === 2 && (
-            <div className="space-y-6 animate-fade-in">
-              <div>
-                <h2 className="text-xl font-bold text-charcoal">예상 하객 수를 알려주세요</h2>
-                <p className="text-charcoal/50 text-sm mt-1">웨딩홀 수용 인원과 식대를 계산할 때 사용돼요</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {GUEST_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setGuestCount(opt.value)}
-                    className={`p-5 rounded-2xl border-2 text-center transition-all ${
-                      guestCount === opt.value
-                        ? 'border-soft-gold bg-soft-gold/10'
-                        : 'border-warm-beige/50 hover:border-soft-gold/30'
-                    }`}
-                  >
-                    <div className="text-2xl mb-1">{opt.icon}</div>
-                    <div className={`font-semibold ${guestCount === opt.value ? 'text-soft-gold' : 'text-charcoal'}`}>{opt.label}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="bg-cream rounded-2xl p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-charcoal/60">설정 예산</span>
-                  <span className="font-bold text-charcoal">{formatPrice(customBudget ? parseInt(customBudget) : budget)}원</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-charcoal/60">예상 하객</span>
-                  <span className="font-bold text-charcoal">{guestCount}명</span>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="flex-1 py-4 border-2 border-warm-beige rounded-2xl font-semibold text-charcoal/60 hover:bg-warm-beige/20 transition-all">이전</button>
-                <button onClick={handleComplete} className="flex-1 py-4 bg-soft-gold text-white rounded-2xl font-semibold hover:bg-soft-gold/90 transition-all active:scale-[0.98]">견적 시작하기 ✨</button>
-              </div>
+              {step === 1 && <BudgetInput value={totalBudget} onChange={setTotalBudget} />}
+              {step === 2 && <RangeInput presets={RENT_PRESETS} value={rentRange} onChange={setRentRange} unitExample={['3000000', '7000000']} />}
+              {step === 3 && <RangeInput presets={FOOD_PRESETS} value={foodRange} onChange={setFoodRange} unitExample={['50000', '70000']} />}
+              {step === 4 && (
+                <>
+                  <GuestInput value={guestCount} onChange={setGuestCount} />
+                  <ConditionSummary totalBudget={totalBudget} rentRange={rentRange} foodRange={foodRange} guestCount={guestCount} />
+                </>
+              )}
+              {nav}
             </div>
           )}
         </div>

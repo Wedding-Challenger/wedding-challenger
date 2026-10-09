@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { displayName } from '../lib/halls';
+import { budgetFilter, displayName } from '../lib/halls';
 import { useBudget } from '../context/BudgetContext';
 
 function formatWon(n) {
@@ -19,6 +19,7 @@ export default function BudgetBasket() {
     includeStudio, includeDress, includeMakeup, includeSnap, includeRing, includeBouquet, includeHanbok,
     getHallCost, getStudioCost, getDressCost, getMakeupCost, getSnapCost, getRingCost, getBouquetCost, getHanbokCost,
     getTotalCost, getTotalCostRange, getRemainingBudget, getBudgetPercent, isOverBudget,
+    getHallBudget, rentRange, foodRange,
   } = useBudget();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -26,8 +27,13 @@ export default function BudgetBasket() {
   const overBudget = isOverBudget();
   const remaining = getRemainingBudget();
 
+  // 담아 둔 웨딩홀이 지금 조건(식대·대관료·남은 예산) 밖이면 지우지 않고 표시만
+  const hallOutside = !!selectedHall?.priceBreakdown && budgetFilter([selectedHall], {
+    hallBudget: getHallBudget(), guestCount, rentRange, foodRange,
+  }).passed.length === 0;
+
   const items = [
-    selectedHall && { label: `🏛 ${displayName(selectedHall.name)}`, detail: `${guestCount}명 × ${formatWon(selectedHall.pricePerPerson)}원`, cost: getHallCost() },
+    selectedHall && { label: `🏛 ${displayName(selectedHall.name)}`, outside: hallOutside, detail: `${guestCount}명 × ${formatWon(selectedHall.pricePerPerson)}원`, cost: getHallCost() },
     includeStudio && selectedStudio && { label: `📸 ${selectedStudio.name}`, cost: getStudioCost() },
     includeDress && selectedDress && { label: `👗 ${selectedDress.name}`, cost: getDressCost() },
     includeMakeup && selectedMakeup && { label: `💄 ${selectedMakeup.name}`, cost: getMakeupCost() },
@@ -94,7 +100,14 @@ export default function BudgetBasket() {
                 {items.map((item, i) => (
                   <div key={i} className="flex items-center justify-between p-3 bg-cream rounded-xl">
                     <div>
-                      <p className="text-sm font-semibold text-charcoal">{item.label}</p>
+                      <p className="text-sm font-semibold text-charcoal">
+                        {item.label}
+                        {item.outside && (
+                          <span className="ml-1.5 align-middle text-[10px] font-medium text-deep-rose bg-deep-rose/10 px-1.5 py-0.5 rounded-full" title="지금 설정한 식대·대관료·남은 예산 조건 밖이에요">
+                            조건 밖
+                          </span>
+                        )}
+                      </p>
                       {item.detail && <p className="text-[11px] text-charcoal/40">{item.detail}</p>}
                     </div>
                     <p className="text-sm font-bold text-charcoal">{formatFullWon(item.cost)}</p>
