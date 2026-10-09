@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getHalls } from '../api/halls';
 import { getVendors } from '../api/vendors';
 import AdSlot from './AdSlot';
+import HorizontalScroll from './HorizontalScroll';
 import { FALLBACK_HALLS, fallbackVendors } from '../data/fallback';
 import { AD_SLOTS } from '../config/ads';
 import HallFilter from './HallFilter';
@@ -50,9 +51,9 @@ function CategoryRow({ icon, title, subtitle, filter, children }) {
         </div>
       </div>
       {filter}
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+      <HorizontalScroll gapClass="gap-4" label={title}>
         {children}
-      </div>
+      </HorizontalScroll>
     </div>
   );
 }
