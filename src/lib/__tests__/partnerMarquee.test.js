@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, rootHandlers, showToggle, toggleLabel,
+  initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, rootHandlers, showToggle, toggleLabel, createToggleIntent,
 } from '../partnerMarquee';
 
 const run = (state, ...actions) => actions.reduce(marqueeReducer, state);
@@ -104,25 +104,24 @@ describe('마키 위치', () => {
   });
 });
 
-describe('마키 루트 이벤트 연결 (리뷰 지적 5)', () => {
-  // 루트 = 정지·이전·다음 버튼 + 카드 영역. React onFocus/onBlur 는 focusin/focusout 처럼 버블링하고 relatedTarget 을 준다
-  // 키보드 포커스는 :focus-visible, 마우스 클릭 포커스는 아니다
-  const keyboard = (name) => ({ name, matches: (q) => q === ':focus-visible' });
-  const toggle = keyboard('toggle');
-  const next = keyboard('next');
-  const card = keyboard('card');
-  const mouseToggle = { name: 'toggle', matches: () => false };
+describe('마키 루트 이벤트 연결 (리뷰 1판 5·2판 4)', () => {
+  // 루트 = 정지·이전·다음 버튼 + 카드 영역. React onFocus 는 focusin 처럼 버블링하고 relatedTarget 을 준다.
+  // 입력 방식(키보드·마우스·터치·보조기술·프로그램)과 무관하게 실제 포커스 진입이면 멈춘다.
+  const toggle = { name: 'toggle', matches: () => false };
+  const next = { name: 'next', matches: () => false };
+  const card = { name: 'card', matches: () => false };
   const outside = { name: 'outside' };
-  const root = { contains: (el) => el === toggle || el === next || el === card || el === mouseToggle };
+  const root = { contains: (el) => el === toggle || el === next || el === card };
   const setup = () => {
     const actions = [];
     let state = initialMarquee();
     const dispatch = (a) => { actions.push(a); state = marqueeReducer(state, a); };
-    return { actions, h: rootHandlers(dispatch), state: () => state };
+    return { actions, dispatch, h: rootHandlers(dispatch), state: () => state };
   };
   const focusEvent = (target, relatedTarget) => ({ target, relatedTarget, currentTarget: root });
+  const pointer = (pointerType) => ({ pointerType });
 
-  it('tabIntoControlButtonPauses — 바깥에서 Tab 으로 정지 버튼에 들어오면 멈춘다', () => {
+  it('anyFocusEntryPauses — :focus-visible 이 아니어도(마우스·보조기술·프로그램 포커스) 루트 진입이면 멈춘다', () => {
     const { h, state } = setup();
     h.onFocus(focusEvent(toggle, outside));
     expect(isRunning(state(), true)).toBe(false);
@@ -135,38 +134,95 @@ describe('마키 루트 이벤트 연결 (리뷰 지적 5)', () => {
     expect(isRunning(state(), true)).toBe(false);
   });
 
+  it('mouseFocusThenPointerLeavesStaysPaused — 마우스로 버튼에 포커스만 두고 포인터가 나가도 재개하지 않는다', () => {
+    const { h, state } = setup();
+    h.onPointerEnter(pointer('mouse'));
+    h.onFocus(focusEvent(toggle, outside));
+    h.onPointerLeave(pointer('mouse'));
+    expect(isRunning(state(), true)).toBe(false);
+  });
+
   it('explicitPlayKeepsRunningWhileMovingInside — 재생을 누른 뒤 루트 안에서 포커스를 옮겨도 다시 멈추지 않는다', () => {
-    const { h, actions, state } = setup();
+    const { h, actions } = setup();
     h.onFocus(focusEvent(toggle, outside));
     actions.length = 0;
-    marqueeReducer(state(), { type: 'PLAY' });
     h.onFocus(focusEvent(next, toggle));
-    h.onBlur(focusEvent(toggle, next));
     expect(actions).toEqual([]);
   });
 
-  it('leavingRootDoesNotResume — 루트 밖으로 나가도 재생하지 않는다', () => {
-    const { h, state } = setup();
-    h.onFocus(focusEvent(toggle, outside));
-    h.onBlur(focusEvent(toggle, outside));
-    expect(isRunning(state(), true)).toBe(false);
-  });
-
-  it('mouseClickOnPauseIsNotSwallowedByFocus — 마우스로 일시정지를 누르면 포커스 정지가 끼어들어 재생으로 뒤집히지 않는다', () => {
+  it('touchStartOnRootPauses — 루트 어디든(제어 버튼 포함) 터치하면 멈추고, 터치 hover 는 무시', () => {
     const { h, state, actions } = setup();
-    // mousedown → 버튼 포커스(마우스, focus-visible 아님) → click → TOGGLE
-    h.onFocus(focusEvent(mouseToggle, outside));
+    h.onPointerEnter(pointer('touch'));
     expect(actions).toEqual([]);
-    const after = marqueeReducer(state(), { type: 'TOGGLE' });
-    expect(isRunning(after, true)).toBe(false);
-    expect(toggleLabel(after)).toBe('재생');
+    h.onTouchStart();
+    expect(isRunning(state(), true)).toBe(false);
   });
 
-  it('hoverOnRootIncludingControls — 제어 버튼을 포함한 루트 hover 동안 멈춘다', () => {
+  it('mouseHoverPausesOnlyWhileHovering — 마우스 hover(제어 버튼 포함) 동안만 멈춘다', () => {
     const { h, state } = setup();
-    h.onMouseEnter();
+    h.onPointerEnter(pointer('mouse'));
     expect(isRunning(state(), true)).toBe(false);
-    h.onMouseLeave();
+    h.onPointerLeave(pointer('mouse'));
     expect(isRunning(state(), true)).toBe(true);
+  });
+});
+
+describe('정지/재생 버튼 의도 (리뷰 2판 4)', () => {
+  // 누른 순간(pointerdown) 화면에 보이던 버튼 의도를 기억해, 이어지는 포커스 정지와 상관없이 PAUSE/PLAY 를 보낸다
+  const outside = { name: 'outside' };
+  const toggle = { name: 'toggle' };
+  const root = { contains: (el) => el === toggle };
+  const focusIn = { target: toggle, relatedTarget: outside, currentTarget: root };
+
+  function flow(initial) {
+    let state = initial;
+    const dispatch = (a) => { state = marqueeReducer(state, a); };
+    const h = rootHandlers(dispatch);
+    const intent = createToggleIntent();
+    return { h, intent, dispatch, state: () => state };
+  }
+
+  it('mouseClickPauseStaysPaused — 마우스로 「일시정지」를 누르면 포커스 정지가 끼어도 정지', () => {
+    const { h, intent, dispatch, state } = flow(initialMarquee());
+    intent.pointerDown(state());
+    h.onFocus(focusIn);
+    dispatch(intent.click(state()));
+    expect(isRunning(state(), true)).toBe(false);
+    expect(toggleLabel(state())).toBe('재생');
+  });
+
+  it('mouseClickPlayPlays — 멈춘 상태에서 마우스로 「재생」을 누르면 재생', () => {
+    const { h, intent, dispatch, state } = flow({ ...initialMarquee(), paused: true });
+    intent.pointerDown(state());
+    h.onFocus(focusIn);
+    dispatch(intent.click(state()));
+    expect(isRunning(state(), true)).toBe(true);
+  });
+
+  it('touchTapPlayPlays — 터치로 「재생」을 누르면 touchstart 정지가 끼어도 재생', () => {
+    const { h, intent, dispatch, state } = flow({ ...initialMarquee(), paused: true });
+    intent.pointerDown(state());
+    h.onTouchStart();
+    h.onFocus(focusIn);
+    dispatch(intent.click(state()));
+    expect(isRunning(state(), true)).toBe(true);
+  });
+
+  it('keyboardEnterUsesShownLabel — 키보드(Tab 진입 정지 뒤 Enter)는 보이는 「재생」대로 재생', () => {
+    const { h, intent, dispatch, state } = flow(initialMarquee());
+    h.onFocus(focusIn);
+    expect(toggleLabel(state())).toBe('재생');
+    dispatch(intent.click(state()));
+    expect(isRunning(state(), true)).toBe(true);
+    // 다음 Enter 는 일시정지
+    dispatch(intent.click(state()));
+    expect(isRunning(state(), true)).toBe(false);
+  });
+
+  it('intentIsUsedOnce — 기억한 의도는 한 번만 쓴다', () => {
+    const { intent, state } = flow(initialMarquee());
+    intent.pointerDown(state());
+    expect(intent.click({ ...state(), paused: true })).toEqual({ type: 'PAUSE' });
+    expect(intent.click({ ...state(), paused: true })).toEqual({ type: 'PLAY' });
   });
 });

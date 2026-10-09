@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import PartnerCard from './PartnerCard';
 import {
-  MARQUEE_SPEED, initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, rootHandlers, showToggle, toggleLabel,
+  MARQUEE_SPEED, initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, rootHandlers, showToggle, toggleLabel, createToggleIntent,
 } from '../lib/partnerMarquee';
 import { REDUCED_MOTION_QUERY, prefersReducedMotion } from '../lib/scrollMotion';
 
@@ -78,6 +78,7 @@ export default function PartnerMarquee({ items, label = '제휴 업체' }) {
 
   // 정지·이전·다음 버튼을 포함한 루트에서 hover·포커스 진입 시 멈춘다(재생은 버튼으로만)
   const root = rootHandlers(dispatch);
+  const [toggleIntent] = useState(createToggleIntent);
 
   // 카드에 포커스가 오면 그 카드가 보이게 옮긴다(수동 모드). 포커스는 옮기지 않는다.
   const onCardFocus = (e) => {
@@ -126,7 +127,13 @@ export default function PartnerMarquee({ items, label = '제휴 업체' }) {
         <div className="flex justify-end gap-2">
           {/* 자동 이동 정지/재생이 이 줄의 첫 Tab 요소 */}
           {showToggle(state, animatable) && (
-            <button type="button" onClick={() => dispatch({ type: 'TOGGLE' })} aria-label={`${label} 자동 이동 ${toggleLabel(state)}`} className={control}>
+            <button
+              type="button"
+              onPointerDown={() => toggleIntent.pointerDown(state)}
+              onClick={() => dispatch(toggleIntent.click(state))}
+              aria-label={`${label} 자동 이동 ${toggleLabel(state)}`}
+              className={control}
+            >
               {state.paused ? '▶ 재생' : '❚❚ 일시정지'}
             </button>
           )}
