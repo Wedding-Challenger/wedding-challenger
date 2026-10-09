@@ -1,25 +1,62 @@
-# master 에 push 되면 빌드(사전 렌더링 포함) 후 Cloudflare Pages 에 배포한다.
+# master·develop push(와 그 두 브랜치의 수동 실행)는 빌드(사전 렌더링 포함) 후 Cloudflare Pages 에 배포하고,
+# master·develop 대상 PR 은 production·staging 두 mode 빌드 검증만 한다(배포·secret 없음).
+#   master  → production 빌드(운영 API·광고·색인)             → --branch=master  (운영)
+#   develop → staging 빌드(api-dev·광고 없음·noindex)          → --branch=develop (https://develop.wedding-challenger.pages.dev)
+# 이벤트·ref·프로젝트 변수 → mode/branch/업로드/프로젝트 생성 허용 판정은 scripts/deploy-target.mjs 하나가 한다.
+# 이 파일에 브랜치 정책 조건식을 다시 쓰지 않는다(표 검증: scripts/__tests__/deploy-target.test.js).
 # 필요한 저장소 설정 (Settings > Secrets and variables > Actions):
 #   secrets.CLOUDFLARE_API_TOKEN   — 권한: Account > Cloudflare Pages > Edit
 #   secrets.CLOUDFLARE_ACCOUNT_ID
-#   vars.CLOUDFLARE_PAGES_PROJECT  — Pages 프로젝트 이름
+#   vars.CLOUDFLARE_PAGES_PROJECT  — Pages 프로젝트 이름 (develop 배포는 wedding-challenger 일 때만)
 name: Deploy
 
 on:
   push:
-    branches: [master]
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
   workflow_dispatch:
 
+# 같은 브랜치(PR 은 같은 PR)의 이전 실행만 취소한다. master·develop 은 서로 취소하지 않는다.
 concurrency:
-  group: deploy-production
+  group: deploy-${{ github.ref_name }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  deploy:
+  target:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      deployments: write
+    outputs:
+      json: ${{ steps.target.outputs.json }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 허용 밖 이벤트·ref(예: 기능 브랜치 수동 실행)·develop 프로젝트 불일치는 여기서 exit 1 — 뒤 job 은 돌지 않는다
+      - id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          target=$(node scripts/deploy-target.mjs)
+          echo "$target"
+          echo "json=$target" >> "$GITHUB_OUTPUT"
+
+  # PR: 두 mode 를 차례로 빌드하고 산출물 정책을 검사한다. secret·배포 권한 없음.
+  verify:
+    needs: target
+    if: ${{ !fromJSON(needs.target.outputs.json).upload }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -30,30 +67,55 @@ jobs:
 
       - run: npm ci
       - run: npm test
-      - run: npm run build
 
-      # 빌드 산출물에 AdSense 필수 파일이 빠지면 배포 중단
-      - name: Check AdSense files
+      - name: Build and check each mode
+        env:
+          BUILD_MODES: ${{ join(fromJSON(needs.target.outputs.json).buildModes, ' ') }}
         run: |
-          grep -q "^google.com, pub-[0-9]*, DIRECT" dist/ads.txt
-          grep -q 'google-adsense-account" content="ca-pub-[0-9]*"' dist/index.html
+          for mode in $BUILD_MODES; do
+            node scripts/build.mjs --mode "$mode"
+            node scripts/check-dist.mjs "$mode"
+          done
 
-      # 첫 배포 때 Pages 프로젝트가 없으면 만든다 (운영 브랜치 master)
+  deploy:
+    needs: target
+    if: ${{ fromJSON(needs.target.outputs.json).upload }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      MODE: ${{ fromJSON(needs.target.outputs.json).mode }}
+      BRANCH: ${{ fromJSON(needs.target.outputs.json).branch }}
+      PROJECT: ${{ fromJSON(needs.target.outputs.json).project }}
+      ALLOW_CREATE: ${{ fromJSON(needs.target.outputs.json).allowProjectCreation }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: node scripts/build.mjs --mode "$MODE"
+
+      # 산출물 정책 검사: production 은 광고 meta·ads.txt(게시자 ID 는 src/config/ads.js 를 import 해서 비교)·색인 허용,
+      # staging 은 광고 meta·ads.txt·sitemap 없음, noindex·robots 전체 차단·_headers, 번들 API origin 이 api-dev 인지
+      - name: Check dist
+        run: node scripts/check-dist.mjs "$MODE"
+
+      # 프로젝트가 없으면 master(production)만 만든다(운영 브랜치 master). develop 은 없으면 실패.
       - name: Ensure Pages project
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
-        run: |
-          if npx --yes wrangler@4 pages project list | grep -qw "$PROJECT"; then
-            echo "Pages project '$PROJECT' exists"
-          else
-            npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=master
-          fi
+        run: sh scripts/ensure-pages-project.sh
 
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=master
+          command: pages deploy dist --project-name=${{ env.PROJECT }} --branch=${{ env.BRANCH }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
