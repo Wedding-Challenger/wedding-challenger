@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  adminReducer, canSave, canSubmit, catalogLinkPatch, catalogReducer, initialAdminState, initialCatalog, isoToKstInput,
+  adminReducer, canEditOrder, canSave, canSubmit, catalogLinkPatch, createLatestLoader, isLatestPending, catalogReducer, initialAdminState, initialCatalog, isoToKstInput,
   kstInputToIso, latestPlacementForm, needsReload, orderPayload, reorder, validatePartner, validatePlacement,
   visiblePlacements,
 } from '../partnerAdmin';
@@ -118,25 +118,25 @@ describe('슬롯 전환과 늦은 응답 (리뷰 지적 2)', () => {
   });
 });
 
-describe('409 충돌 폼 잠금 (리뷰 지적 4)', () => {
+describe('409 충돌 폼 잠금 (리뷰 1판 4·2판 2)', () => {
   const loaded = loadOk(start(initialAdminState, 1), 1, SLOT, {
     placements: [{ id: 10, partnerId: 1, slot: SLOT, startsAt: '2026-10-01T00:00:00+09:00', endsAt: '2026-11-01T00:00:00+09:00', displayOrder: 0, enabled: false, version: 2 }],
   });
-  const conflict = adminReducer(adminReducer(loaded, { type: 'SAVE_START' }), { type: 'SAVE_FAIL', error: err('conflict'), target: 'placement' });
+  const conflictOn = (s, target, id) => adminReducer(adminReducer(s, { type: 'SAVE_START' }), { type: 'SAVE_FAIL', error: err('conflict'), target, id });
+  const conflict = conflictOn(loaded, 'placement', 10);
 
   it('conflictLocksThatFormUntilLatestLoaded — 충돌한 폼은 최신 불러오기 전까지 저장 잠금', () => {
     const reloaded = loadOk(start(conflict, 2), 2, SLOT, {
       placements: [{ ...loaded.placements[0], displayOrder: 4, version: 5 }],
     });
     expect(canSave(reloaded)).toBe(true);
-    expect(canSubmit(reloaded, 'placement')).toBe(false);
-    expect(canSubmit(reloaded, 'partner')).toBe(true);
-    // 「최신 불러오기」: 최신 상세·version 으로 폼을 바꾸고 나서야 저장 가능
+    expect(canSubmit(reloaded, 'placement', 10)).toBe(false);
+    expect(canSubmit(reloaded, 'partner', 1)).toBe(true);
     const form = latestPlacementForm(reloaded.placements, 10);
     expect(form.version).toBe(5);
     expect(form.displayOrder).toBe('4');
-    const refreshed = adminReducer(reloaded, { type: 'FORM_REFRESHED' });
-    expect(canSubmit(refreshed, 'placement')).toBe(true);
+    const refreshed = adminReducer(reloaded, { type: 'FORM_REFRESHED', target: 'placement', id: 10 });
+    expect(canSubmit(refreshed, 'placement', 10)).toBe(true);
     expect(latestPlacementForm(reloaded.placements, 99)).toBeNull();
   });
 
@@ -145,16 +145,63 @@ describe('409 충돌 폼 잠금 (리뷰 지적 4)', () => {
     expect(canSave(reloading)).toBe(false);
     const failed = adminReducer(reloading, { type: 'LOAD_FAIL', seq: 2, error: err('network') });
     expect(canSave(failed)).toBe(false);
-    expect(canSubmit(failed, 'partner')).toBe(false);
+    expect(canSubmit(failed, 'partner', 1)).toBe(false);
     expect(needsReload(failed)).toBe(false);
-    // 사용자가 새로고침해 성공하면 풀린다
     expect(canSave(loadOk(start(failed, 3), 3))).toBe(true);
   });
 
-  it('cancelClearsConflict — 충돌 폼을 닫으면 잠금 해제', () => {
+  it('closeClearsOnlyThatForm — 닫은 폼의 잠금만 풀린다', () => {
     const reloaded = loadOk(start(conflict, 2), 2);
-    expect(canSubmit(adminReducer(reloaded, { type: 'FORM_CLOSED', target: 'partner' }), 'placement')).toBe(false);
-    expect(canSubmit(adminReducer(reloaded, { type: 'FORM_CLOSED', target: 'placement' }), 'placement')).toBe(true);
+    expect(canSubmit(adminReducer(reloaded, { type: 'FORM_CLOSED', target: 'partner', id: 1 }), 'placement', 10)).toBe(false);
+    expect(canSubmit(adminReducer(reloaded, { type: 'FORM_CLOSED', target: 'placement', id: 10 }), 'placement', 10)).toBe(true);
+  });
+
+  it('twoFormsConflictInTurn — 업체 409 → 재조회 → 노출 409 → 재조회여도 업체 잠금이 남는다', () => {
+    let s = conflictOn(loaded, 'partner', 1);
+    s = loadOk(start(s, 2), 2);
+    s = conflictOn(s, 'placement', 10);
+    s = loadOk(start(s, 3), 3);
+    expect(canSubmit(s, 'partner', 1)).toBe(false);
+    expect(canSubmit(s, 'placement', 10)).toBe(false);
+    // 노출 폼만 최신 불러오기 → 업체 폼은 여전히 잠금
+    s = adminReducer(s, { type: 'FORM_REFRESHED', target: 'placement', id: 10 });
+    expect(canSubmit(s, 'placement', 10)).toBe(true);
+    expect(canSubmit(s, 'partner', 1)).toBe(false);
+    s = adminReducer(s, { type: 'FORM_REFRESHED', target: 'partner', id: 1 });
+    expect(canSubmit(s, 'partner', 1)).toBe(true);
+    // 같은 종류의 다른 폼(다른 id)은 잠기지 않는다
+    expect(canSubmit(conflictOn(loaded, 'partner', 1), 'partner', 2)).toBe(false); // stale 이라 전체 잠금
+    expect(canSubmit(loadOk(start(conflictOn(loaded, 'partner', 1), 2), 2), 'partner', 2)).toBe(true);
+  });
+
+  it('orderConflictIsSeparateAndSurvivesReload — 순서 409 는 순서 편집 영역만 잠그고 재조회로 풀리지 않는다', () => {
+    let s = conflictOn(loaded, 'partner', 1);
+    s = loadOk(start(s, 2), 2);
+    s = adminReducer(adminReducer(s, { type: 'SAVE_START' }), { type: 'SAVE_FAIL', error: err('conflict'), target: 'order' });
+    s = loadOk(start(s, 3), 3);
+    expect(canEditOrder(s)).toBe(false);
+    expect(canSubmit(s, 'partner', 1)).toBe(false); // 이전 폼 잠금도 유지
+    s = adminReducer(s, { type: 'ORDER_REFRESHED' });
+    expect(canEditOrder(s)).toBe(true);
+    expect(canSubmit(s, 'partner', 1)).toBe(false);
+  });
+});
+
+describe('최신 불러오기 요청 (리뷰 2판 3)', () => {
+  const loaded = loadOk(start(initialAdminState, 1), 1);
+  const conflicted = loadOk(start(adminReducer(adminReducer(loaded, { type: 'SAVE_START' }), {
+    type: 'SAVE_FAIL', error: err('conflict'), target: 'partner', id: 1,
+  }), 2), 2);
+
+  it('latestFailureDoesNotTouchOtherSave — 최신 읽기 실패는 진행 중인 다른 저장 상태를 바꾸지 않는다', () => {
+    let s = adminReducer(conflicted, { type: 'LATEST_START', target: 'partner', id: 1 });
+    expect(isLatestPending(s, 'partner', 1)).toBe(true);
+    s = adminReducer(s, { type: 'SAVE_START' }); // 다른 폼 저장 진행
+    s = adminReducer(s, { type: 'LATEST_FAIL', target: 'partner', id: 1, error: err('network') });
+    expect(s.saving).toBe(true);
+    expect(isLatestPending(s, 'partner', 1)).toBe(false);
+    expect(s.error).toMatch(/네트워크/);
+    expect(canSubmit(adminReducer(s, { type: 'SAVE_OK' }), 'partner', 1)).toBe(false);
   });
 });
 
@@ -304,5 +351,56 @@ describe('폼 ↔ API body', () => {
     expect(Object.keys(body).some((k) => /actor|operator|email|subject/i.test(k))).toBe(false);
     expect(body.name).toBe('샘플');
     expect(body.imageUrl).toBeNull();
+  });
+});
+
+describe('최신 불러오기 로더 (리뷰 2판 3)', () => {
+  function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  }
+  const setup = () => {
+    const calls = [];
+    const applied = [];
+    const failed = [];
+    const loader = createLatestLoader({
+      load: (target, id) => { const d = deferred(); calls.push({ target, id, d }); return d.promise; },
+      onApply: (target, id, value) => applied.push({ target, id, value }),
+      onFail: (target, id, error) => failed.push({ target, id, error }),
+    });
+    return { loader, calls, applied, failed };
+  };
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  it('lateResponseAfterFormReplacedIsIgnored — 업체 A 최신 요청 뒤 B 로 바꾸면 늦은 A 응답이 B 폼을 덮지 않는다', async () => {
+    const { loader, calls, applied } = setup();
+    loader.start('partner', 1);
+    loader.invalidate(); // 폼 교체(업체 B 열기)·닫기·언마운트
+    calls[0].d.resolve({ id: 1, version: 9 });
+    await tick();
+    expect(applied).toEqual([]);
+  });
+
+  it('onlyLatestRequestApplies — 같은 폼에서 다시 누르면 마지막 요청만 반영', async () => {
+    const { loader, calls, applied } = setup();
+    loader.start('partner', 1);
+    loader.start('partner', 1);
+    calls[1].d.resolve({ id: 1, version: 10 });
+    calls[0].d.resolve({ id: 1, version: 9 });
+    await tick();
+    expect(applied).toEqual([{ target: 'partner', id: 1, value: { id: 1, version: 10 } }]);
+  });
+
+  it('failureAfterInvalidateIgnored — 닫은 폼의 실패도 무시, 살아 있는 요청 실패는 전용 콜백', async () => {
+    const { loader, calls, failed } = setup();
+    loader.start('partner', 1);
+    loader.invalidate();
+    calls[0].d.reject(new Error('x'));
+    loader.start('partner', 2);
+    calls[1].d.reject(new Error('y'));
+    await tick();
+    expect(failed.map((f) => f.id)).toEqual([2]);
   });
 });

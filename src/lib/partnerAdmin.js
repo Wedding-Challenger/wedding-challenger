@@ -101,7 +101,8 @@ export const orderPayload = (slot, list) => ({
 // ---- 화면 상태 ----
 // 불러오기는 요청 세대(seq)·슬롯을 함께 싣고, 같은 seq 의 응답만 반영한다(늦게 온 이전 슬롯 응답 무시).
 // 쓰기는 「선택 슬롯 = 받은 데이터 슬롯」이고, 저장·충돌 뒤 다시 읽기가 성공한 상태(stale 아님)일 때만 허용한다.
-// 409 가 난 폼(conflict)은 「최신 불러오기」로 최신 version 을 받은 뒤에야 다시 저장할 수 있다.
+// 409 가 난 폼은 폼 종류+id 별로 잠그고(conflicts), 그 폼의 「최신 불러오기」 성공이나 닫기만 그 잠금을 푼다.
+// 순서 409 는 순서 편집 영역만 따로 잠근다(orderConflict). 최신 읽기 요청 상태(latestPending)는 저장 상태와 따로 둔다.
 
 export const initialAdminState = {
   auth: 'unknown', // unknown | ok | login | forbidden | disabled
@@ -112,7 +113,9 @@ export const initialAdminState = {
   saving: false,
   stale: false, // 저장·충돌 뒤 다시 읽기 성공 전
   reloadRequested: false, // 자동으로 한 번 다시 읽기
-  conflict: null, // 409 가 난 폼: 'partner' | 'placement' | 'order'
+  conflicts: {}, // 409 가 난 폼: { 'partner:1': true, 'placement:10': true }
+  orderConflict: false,
+  latestPending: null, // 최신 불러오기 진행 중인 폼 키
   me: null,
   partners: [],
   placements: [],
@@ -147,8 +150,6 @@ export function adminReducer(state, action) {
         me: action.me,
         partners: action.partners,
         placements: action.placements,
-        // 순서 초안은 다시 읽으면 버려지므로 순서 충돌은 여기서 끝난다
-        conflict: state.conflict === 'order' ? null : state.conflict,
       };
     case 'LOAD_FAIL': {
       if (action.seq !== state.pendingSeq) return state;
@@ -163,15 +164,30 @@ export function adminReducer(state, action) {
     case 'SAVE_FAIL': {
       const kind = action.error?.kind;
       if (kind === 'conflict') {
-        return { ...state, saving: false, stale: true, reloadRequested: true, conflict: action.target ?? null, notice: CONFLICT_NOTICE };
+        const locked = { ...state, saving: false, stale: true, reloadRequested: true, notice: CONFLICT_NOTICE };
+        if (action.target === 'order') return { ...locked, orderConflict: true };
+        if (action.target) return { ...locked, conflicts: { ...state.conflicts, [formKey(action.target, action.id)]: true } };
+        return locked;
       }
       if (kind === 'login' || kind === 'forbidden') return { ...state, saving: false, auth: AUTH_BY_KIND[kind] };
       return { ...state, saving: false, error: errorMessage(action.error) };
     }
     case 'FORM_REFRESHED':
-      return { ...state, conflict: null, notice: '최신 내용으로 바꿨습니다. 바꿀 내용을 다시 적용해 저장하세요.' };
+      return {
+        ...unlock(state, formKey(action.target, action.id)),
+        notice: '최신 내용으로 바꿨습니다. 바꿀 내용을 다시 적용해 저장하세요.',
+      };
     case 'FORM_CLOSED':
-      return state.conflict === action.target ? { ...state, conflict: null } : state;
+      return unlock(state, formKey(action.target, action.id));
+    case 'ORDER_REFRESHED':
+      return { ...state, orderConflict: false };
+    case 'LATEST_START':
+      return { ...state, latestPending: formKey(action.target, action.id), error: null };
+    case 'LATEST_CANCEL':
+      return state.latestPending ? { ...state, latestPending: null } : state;
+    case 'LATEST_FAIL':
+      // 저장 상태(saving)는 건드리지 않는다
+      return { ...state, latestPending: null, error: errorMessage(action.error) };
     case 'DISMISS':
       return { ...state, notice: null, error: null };
     default:
@@ -179,10 +195,22 @@ export function adminReducer(state, action) {
   }
 }
 
+export const formKey = (target, id) => `${target}:${id ?? 'new'}`;
+
+function unlock(state, key) {
+  const pending = state.latestPending === key ? null : state.latestPending;
+  if (!state.conflicts[key]) return pending === state.latestPending ? state : { ...state, latestPending: pending };
+  const conflicts = { ...state.conflicts };
+  delete conflicts[key];
+  return { ...state, conflicts, latestPending: pending };
+}
+
 export const canSave = (state) =>
   state.auth === 'ok' && !state.loading && !state.saving && !state.stale && state.dataSlot === state.slot;
-// 409 가 난 폼은 최신 불러오기 전까지 잠근다
-export const canSubmit = (state, target) => canSave(state) && state.conflict !== target;
+// 409 가 난 폼(종류+id)은 최신 불러오기 전까지 잠근다
+export const canSubmit = (state, target, id) => canSave(state) && !state.conflicts[formKey(target, id)];
+export const canEditOrder = (state) => canSave(state) && !state.orderConflict;
+export const isLatestPending = (state, target, id) => state.latestPending === formKey(target, id);
 export const needsReload = (state) => state.reloadRequested && !state.loading;
 // 선택 슬롯의 데이터가 아니면 보이지 않는다(이전 슬롯 목록을 현재 슬롯처럼 다루지 않게)
 export const visiblePlacements = (state) => (state.dataSlot === state.slot ? state.placements : []);
@@ -293,4 +321,38 @@ export const sortPlacements = (list) =>
 export function latestPlacementForm(placements, id) {
   const latest = placements.find((p) => p.id === id);
   return latest ? placementToForm(latest) : null;
+}
+
+// 409 뒤 업체 「최신 불러오기」 요청. 저장과 별개의 요청 상태이며, 마지막 요청만 반영한다.
+// 폼을 닫거나 다른 항목으로 바꾸거나 화면이 사라지면 invalidate() 로 진행 중 응답을 버린다.
+export function createLatestLoader({ load, onApply, onFail }) {
+  let seq = 0;
+  let current = null;
+  return {
+    start(target, id) {
+      const my = { seq: ++seq, target, id };
+      current = my;
+      let request;
+      try {
+        request = Promise.resolve(load(target, id));
+      } catch (error) {
+        request = Promise.reject(error);
+      }
+      request.then(
+        (value) => {
+          if (current !== my) return;
+          current = null;
+          onApply(target, id, value);
+        },
+        (error) => {
+          if (current !== my) return;
+          current = null;
+          onFail(target, id, error);
+        },
+      );
+    },
+    invalidate() {
+      current = null;
+    },
+  };
 }
