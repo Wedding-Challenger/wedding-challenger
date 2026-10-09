@@ -62,7 +62,8 @@ export default function PublicLanding({ adsEnabled }) {
   // 첫 렌더(사전 렌더링 포함)는 내장 데이터, API 응답이 오면 교체
   const [halls, setHalls] = useState(FALLBACK_HALLS);
   const [area, setArea] = useState(null);
-  const areaHalls = useMemo(() => filterHalls(halls, { area }), [halls, area]);
+  const [district, setDistrict] = useState(null);
+  const areaHalls = useMemo(() => filterHalls(halls, { area, district }), [halls, area, district]);
   const [vendors, setVendors] = useState(() => ({
     studio: fallbackVendors('studio'),
     dress: fallbackVendors('dress'),
@@ -109,7 +110,9 @@ export default function PublicLanding({ adsEnabled }) {
           icon="🏛"
           title="웨딩홀"
           subtitle={`예식장 비교 · ${halls.length}곳`}
-          filter={<HallFilter halls={halls} area={area} onAreaChange={setArea} />}
+          filter={
+            <HallFilter halls={halls} area={area} onAreaChange={setArea} district={district} onDistrictChange={setDistrict} />
+          }
         >
           {areaHalls.slice(0, LANDING_HALLS).map((h) => (
             <Link to="/calc" key={h.id} state={{ pick: { type: 'HALL', item: h, label: displayName(h.name) } }}>
@@ -129,7 +132,7 @@ export default function PublicLanding({ adsEnabled }) {
               className="min-w-[160px] shrink-0 rounded-2xl border-2 border-dashed border-warm-beige/60 flex flex-col items-center justify-center text-sm text-charcoal/50 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
             >
               <span className="text-2xl mb-1">→</span>
-              {area ?? '전체'} {areaHalls.length}곳
+              {district ? `${area} ${district}` : area ?? '전체'} {areaHalls.length}곳
               <span className="text-xs mt-0.5">계산기에서 모두 보기</span>
             </Link>
           )}
