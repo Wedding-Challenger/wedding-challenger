@@ -4,7 +4,7 @@ export default function PrivacyPolicy() {
     <article className="prose prose-sm max-w-none text-charcoal/80 leading-relaxed space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-charcoal">개인정보처리방침</h1>
-        <p className="text-sm text-charcoal/40 mt-1">최종 업데이트: 2026-05-01</p>
+        <p className="text-sm text-charcoal/40 mt-1">최종 업데이트: 2026-10-10</p>
       </header>
 
       <section>
@@ -17,6 +17,10 @@ export default function PrivacyPolicy() {
           <li>접속 IP, 브라우저 종류, 운영체제, 접속 일시, 방문 페이지</li>
           <li>쿠키 및 유사 기술을 통해 수집되는 광고 식별자</li>
         </ul>
+        <p className="mt-2">
+          유료 제휴 업체는 광고임을 표시하며 일반 목록과 구분해 제공합니다. 제휴 업체 카드는 광고 쿠키나 추적 스크립트 없이
+          제공되며, 카드를 눌러 업체 홈페이지로 이동하는 정보를 서비스가 수집하지 않습니다.
+        </p>
       </section>
 
       <section>
@@ -61,7 +65,9 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className="text-lg font-semibold text-charcoal mt-6 mb-2">4. 개인정보의 보유 및 이용 기간</h2>
         <p>
-          서비스는 자체적으로 식별 가능한 개인정보를 저장하지 않습니다.
+          서비스는 이용자의 식별 가능한 개인정보를 자체적으로 저장하지 않습니다.
+          다만 서비스 운영자가 제휴 업체 관리 도구를 사용할 때에는 접근 인증으로 확인된 운영자 식별자와 변경 내역을
+          감사 기록으로 남기며, 이 기록은 90일간 보관한 뒤 파기합니다. 이 기록은 일반 이용자에게는 해당하지 않습니다.
           쿠키 등 자동 수집 정보는 브라우저 설정 또는 광고 설정 페이지에서 사용자가 직접 삭제·차단할 수 있습니다.
         </p>
       </section>
