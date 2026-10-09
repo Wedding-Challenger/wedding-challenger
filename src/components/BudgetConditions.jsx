@@ -1,4 +1,4 @@
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import { FOOD_PRESETS, RENT_PRESETS, filterSummary, formatMan } from '../lib/budgetPresets';
 import { BudgetInput, GuestInput, RangeInput } from './ConditionInputs';
 

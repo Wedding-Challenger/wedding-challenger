@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import Onboarding from './Onboarding';
 import WeddingHallCard from './WeddingHallCard';
 import SdmeCustomizer from './SdmeCustomizer';

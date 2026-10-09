@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import { getHalls } from '../api/halls';
 import { getVendors } from '../api/vendors';
 

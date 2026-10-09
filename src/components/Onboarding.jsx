@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import { FOOD_PRESETS, RENT_PRESETS } from '../lib/budgetPresets';
 import { BudgetInput, ConditionSummary, GuestInput, RangeInput } from './ConditionInputs';
 
