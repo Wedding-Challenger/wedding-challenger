@@ -3,6 +3,8 @@
 // - 넘칠 때(카드 2개 이상·한 화면을 넘음)만 움직인다. 아니면 정지 목록.
 // - 움직임 줄이기: 처음부터 정지·재생 버튼 없음. 실행 중 켜지면 즉시 멈추고, 꺼져도 사용자가 재생해야 움직인다.
 // - hover·탭 숨김은 그동안만 멈춘다. 포커스·터치·이전/다음·직접 정지는 명시적 재생 전까지 멈춘다.
+// - hover·포커스는 제어 버튼을 포함한 마키 루트 기준이다(rootHandlers). 키보드 포커스가 루트 밖에서 들어올 때만 멈추고,
+//   루트 안에서 옮기거나 밖으로 나가도 재생하지 않는다.
 
 export const MARQUEE_SPEED = 30; // px/s, 완만한 이동
 
@@ -45,6 +47,8 @@ export function marqueeReducer(s, action) {
       return { ...s, hidden: action.hidden };
     case 'REDUCED_MOTION':
       return action.value ? { ...s, reducedMotion: true, paused: true } : { ...s, reducedMotion: false };
+    case 'FOCUS_ENTER':
+      return { ...s, paused: true };
     case 'FOCUS_ITEM':
       return { ...s, paused: true, offset: wrap(action.offset, action.loopWidth) };
     case 'TOUCH':
@@ -61,4 +65,29 @@ export function marqueeReducer(s, action) {
     default:
       return s;
   }
+}
+
+// 마키 루트(정지·이전·다음 버튼 + 카드 영역)에 붙이는 이벤트. React onFocus/onBlur 는 버블링하고 relatedTarget 을 준다.
+// relatedTarget 이 루트 안이면 루트 안에서 포커스가 옮겨진 것이다.
+// 포커스 진입 정지는 키보드 포커스(:focus-visible)만 본다. 마우스는 루트 hover 가 이미 멈추고,
+// 마우스 클릭 포커스까지 멈추게 하면 「일시정지」 클릭이 포커스 정지 뒤 TOGGLE 로 재생으로 뒤집힌다.
+const isKeyboardFocus = (el) => {
+  try {
+    return el.matches(':focus-visible');
+  } catch {
+    return true;
+  }
+};
+
+export function rootHandlers(dispatch) {
+  const fromOutside = (e) => !e.relatedTarget || !e.currentTarget.contains(e.relatedTarget);
+  return {
+    onFocus: (e) => {
+      if (fromOutside(e) && isKeyboardFocus(e.target)) dispatch({ type: 'FOCUS_ENTER' });
+    },
+    // 루트 밖으로 나가도 재생하지 않는다(사용자의 재생 버튼을 기다린다)
+    onBlur: () => {},
+    onMouseEnter: () => dispatch({ type: 'HOVER', value: true }),
+    onMouseLeave: () => dispatch({ type: 'HOVER', value: false }),
+  };
 }

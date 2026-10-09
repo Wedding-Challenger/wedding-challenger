@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import PartnerCard from './PartnerCard';
 import {
-  MARQUEE_SPEED, initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, showToggle, toggleLabel,
+  MARQUEE_SPEED, initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, rootHandlers, showToggle, toggleLabel,
 } from '../lib/partnerMarquee';
 import { REDUCED_MOTION_QUERY, prefersReducedMotion } from '../lib/scrollMotion';
 
@@ -76,8 +76,11 @@ export default function PartnerMarquee({ items, label = '제휴 업체' }) {
     };
   }, []);
 
-  // 카드에 포커스가 오면 멈추고(재생은 버튼으로만) 그 카드가 보이게 옮긴다. 포커스는 옮기지 않는다.
-  const onFocus = (e) => {
+  // 정지·이전·다음 버튼을 포함한 루트에서 hover·포커스 진입 시 멈춘다(재생은 버튼으로만)
+  const root = rootHandlers(dispatch);
+
+  // 카드에 포커스가 오면 그 카드가 보이게 옮긴다(수동 모드). 포커스는 옮기지 않는다.
+  const onCardFocus = (e) => {
     const viewport = viewportRef.current;
     if (viewport) viewport.scrollLeft = 0; // overflow 숨김 영역이 브라우저 포커스 스크롤로 밀리지 않게
     const card = e.target.closest?.('[data-marquee-item]');
@@ -118,7 +121,7 @@ export default function PartnerMarquee({ items, label = '제휴 업체' }) {
     'h-9 min-w-9 px-3 rounded-full bg-white border border-warm-beige/40 shadow-sm text-sm text-charcoal/70 hover:text-soft-gold hover:border-soft-gold/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-soft-gold/60 transition-colors';
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" {...root}>
       {animatable && (
         <div className="flex justify-end gap-2">
           {/* 자동 이동 정지/재생이 이 줄의 첫 Tab 요소 */}
@@ -137,9 +140,7 @@ export default function PartnerMarquee({ items, label = '제휴 업체' }) {
         aria-label={label}
         className="overflow-hidden pb-2"
         style={{ touchAction: 'pan-y' }}
-        onMouseEnter={() => dispatch({ type: 'HOVER', value: true })}
-        onMouseLeave={() => dispatch({ type: 'HOVER', value: false })}
-        onFocus={onFocus}
+        onFocus={onCardFocus}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

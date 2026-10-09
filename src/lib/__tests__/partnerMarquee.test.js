@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, showToggle, toggleLabel,
+  initialMarquee, isAnimatable, isRunning, marqueeReducer, revealOffset, rootHandlers, showToggle, toggleLabel,
 } from '../partnerMarquee';
 
 const run = (state, ...actions) => actions.reduce(marqueeReducer, state);
@@ -101,5 +101,72 @@ describe('마키 위치', () => {
     expect(revealOffset({ offset: 0, itemStart: 300, itemWidth: 260, viewportWidth: 1000 })).toBe(0);
     expect(revealOffset({ offset: 0, itemStart: 900, itemWidth: 260, viewportWidth: 1000 })).toBe(900);
     expect(revealOffset({ offset: 500, itemStart: 100, itemWidth: 260, viewportWidth: 1000 })).toBe(100);
+  });
+});
+
+describe('마키 루트 이벤트 연결 (리뷰 지적 5)', () => {
+  // 루트 = 정지·이전·다음 버튼 + 카드 영역. React onFocus/onBlur 는 focusin/focusout 처럼 버블링하고 relatedTarget 을 준다
+  // 키보드 포커스는 :focus-visible, 마우스 클릭 포커스는 아니다
+  const keyboard = (name) => ({ name, matches: (q) => q === ':focus-visible' });
+  const toggle = keyboard('toggle');
+  const next = keyboard('next');
+  const card = keyboard('card');
+  const mouseToggle = { name: 'toggle', matches: () => false };
+  const outside = { name: 'outside' };
+  const root = { contains: (el) => el === toggle || el === next || el === card || el === mouseToggle };
+  const setup = () => {
+    const actions = [];
+    let state = initialMarquee();
+    const dispatch = (a) => { actions.push(a); state = marqueeReducer(state, a); };
+    return { actions, h: rootHandlers(dispatch), state: () => state };
+  };
+  const focusEvent = (target, relatedTarget) => ({ target, relatedTarget, currentTarget: root });
+
+  it('tabIntoControlButtonPauses — 바깥에서 Tab 으로 정지 버튼에 들어오면 멈춘다', () => {
+    const { h, state } = setup();
+    h.onFocus(focusEvent(toggle, outside));
+    expect(isRunning(state(), true)).toBe(false);
+    expect(toggleLabel(state())).toBe('재생');
+  });
+
+  it('focusFromNothingPauses — 처음 포커스(relatedTarget 없음)도 멈춘다', () => {
+    const { h, state } = setup();
+    h.onFocus(focusEvent(next, null));
+    expect(isRunning(state(), true)).toBe(false);
+  });
+
+  it('explicitPlayKeepsRunningWhileMovingInside — 재생을 누른 뒤 루트 안에서 포커스를 옮겨도 다시 멈추지 않는다', () => {
+    const { h, actions, state } = setup();
+    h.onFocus(focusEvent(toggle, outside));
+    actions.length = 0;
+    marqueeReducer(state(), { type: 'PLAY' });
+    h.onFocus(focusEvent(next, toggle));
+    h.onBlur(focusEvent(toggle, next));
+    expect(actions).toEqual([]);
+  });
+
+  it('leavingRootDoesNotResume — 루트 밖으로 나가도 재생하지 않는다', () => {
+    const { h, state } = setup();
+    h.onFocus(focusEvent(toggle, outside));
+    h.onBlur(focusEvent(toggle, outside));
+    expect(isRunning(state(), true)).toBe(false);
+  });
+
+  it('mouseClickOnPauseIsNotSwallowedByFocus — 마우스로 일시정지를 누르면 포커스 정지가 끼어들어 재생으로 뒤집히지 않는다', () => {
+    const { h, state, actions } = setup();
+    // mousedown → 버튼 포커스(마우스, focus-visible 아님) → click → TOGGLE
+    h.onFocus(focusEvent(mouseToggle, outside));
+    expect(actions).toEqual([]);
+    const after = marqueeReducer(state(), { type: 'TOGGLE' });
+    expect(isRunning(after, true)).toBe(false);
+    expect(toggleLabel(after)).toBe('재생');
+  });
+
+  it('hoverOnRootIncludingControls — 제어 버튼을 포함한 루트 hover 동안 멈춘다', () => {
+    const { h, state } = setup();
+    h.onMouseEnter();
+    expect(isRunning(state(), true)).toBe(false);
+    h.onMouseLeave();
+    expect(isRunning(state(), true)).toBe(true);
   });
 });
