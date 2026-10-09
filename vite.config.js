@@ -34,20 +34,30 @@ function siteMeta(config) {
   }
 }
 
-export default defineConfig(({ mode }) => {
+// envRoot 는 env 파일 위치(기본은 이 저장소). 테스트가 임시 디렉터리로 같은 프로세스 재평가를 확인할 때만 바꾼다.
+export function createViteConfig({ mode }, envRoot = root) {
   // mode 별 API·사이트 origin 을 검증한다. 허용 밖 조합(예: development 에 운영 API)은 dev 서버·빌드 모두 여기서 실패.
   // test 는 env 파일·프로세스 값을 읽지 않고 고정값(localhost, 광고·색인 false)을 쓴다.
-  const config = resolveModeConfig({ mode, root, loadEnv })
-  // client 의 import.meta.env.VITE_API_BASE_URL 을 검증된 값으로 맞춘다(test 는 고정값 — vi.stubEnv 로만 바꾼다)
-  process.env.VITE_API_BASE_URL = config.apiOrigin
+  const config = resolveModeConfig({ mode, root: envRoot, loadEnv })
+  const define = { __WC_BUILD_CONFIG__: JSON.stringify(config) }
+  if (mode === 'test') {
+    // test 는 client API 값을 고정값으로 초기화한다(개별 테스트는 vi.stubEnv 로만 바꾼다)
+    process.env.VITE_API_BASE_URL = config.apiOrigin
+  } else {
+    // 그 밖의 mode 는 process.env 를 건드리지 않는다 — 건드리면 dev 서버 재시작 때 loadEnv 가 그 값을
+    // env 파일보다 우선해 설정 변경·제거와 잘못된 값이 가려진다. client·SSR 에는 검증값을 define 으로 넣는다.
+    define['import.meta.env.VITE_API_BASE_URL'] = JSON.stringify(config.apiOrigin)
+  }
 
   return {
-    envDir: mode === 'test' ? false : root,
-    define: { __WC_BUILD_CONFIG__: JSON.stringify(config) },
+    envDir: mode === 'test' ? false : envRoot,
+    define,
     plugins: [react(), tailwindcss(), siteMeta(config)],
     server: {
       port: 5173,
       strictPort: true,
     },
   }
-})
+}
+
+export default defineConfig((env) => createViteConfig(env))

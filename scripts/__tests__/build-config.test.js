@@ -122,3 +122,46 @@ describe('test mode 격리', () => {
     expect(import.meta.env.VITE_API_BASE_URL).toBe(LOCAL_API);
   });
 });
+
+describe('development 설정 변경 재해석', () => {
+  let dir;
+  const saved = process.env.VITE_API_BASE_URL;
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+    if (saved === undefined) delete process.env.VITE_API_BASE_URL;
+    else process.env.VITE_API_BASE_URL = saved;
+  });
+
+  it('developmentReevaluatesEnvChangesWithoutProcessEnvPollution — 같은 프로세스에서 env 파일을 바꿔 다시 평가하면 새 origin 을 쓰고 운영 API 는 거부', async () => {
+    dir = mkdtempSync(path.join(tmpdir(), 'wc-dev-env-'));
+    const envFile = path.join(dir, '.env.development.local');
+    delete process.env.VITE_API_BASE_URL;
+    const { createViteConfig } = await import('../../vite.config.js');
+    const evaluate = () => {
+      const config = createViteConfig({ mode: 'development', command: 'serve' }, dir);
+      return {
+        build: JSON.parse(config.define.__WC_BUILD_CONFIG__).apiOrigin,
+        client: JSON.parse(config.define['import.meta.env.VITE_API_BASE_URL']),
+      };
+    };
+
+    // 처음: env 파일 없음 → localhost 기본값
+    expect(evaluate()).toEqual({ build: LOCAL_API, client: LOCAL_API });
+    // (d) development 평가는 process.env 를 건드리지 않는다
+    expect(process.env.VITE_API_BASE_URL).toBeUndefined();
+
+    // (a) api-dev 를 넣고 다시 평가 → api-dev
+    writeFileSync(envFile, `VITE_API_BASE_URL=${API_DEV}\n`);
+    expect(evaluate()).toEqual({ build: API_DEV, client: API_DEV });
+
+    // (b) 다시 제거 → 기본값으로 돌아감
+    rmSync(envFile);
+    expect(evaluate()).toEqual({ build: LOCAL_API, client: LOCAL_API });
+
+    // (c) 운영 API 로 바꾸면 거부
+    writeFileSync(envFile, `VITE_API_BASE_URL=${API_PROD}\n`);
+    expect(evaluate).toThrow(/VITE_API_BASE_URL/);
+    expect(process.env.VITE_API_BASE_URL).toBeUndefined();
+  });
+});
