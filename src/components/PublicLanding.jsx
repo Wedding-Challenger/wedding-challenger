@@ -4,6 +4,8 @@ import { getHalls } from '../api/halls';
 import { getVendors } from '../api/vendors';
 import AdSlot from './AdSlot';
 import HorizontalScroll from './HorizontalScroll';
+import PartnerMarquee from './PartnerMarquee';
+import usePartnerFeed from '../hooks/usePartnerFeed';
 import { FALLBACK_HALLS, fallbackVendors } from '../data/fallback';
 import { AD_SLOTS } from '../config/ads';
 import HallFilter from './HallFilter';
@@ -40,16 +42,22 @@ function CardItem({ image, media, name, title, price, description, badge }) {
   );
 }
 
+function RowTitle({ icon, title, subtitle }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <span className="w-9 h-9 bg-soft-gold/10 rounded-xl flex items-center justify-center text-base">{icon}</span>
+      <div>
+        <h2 className="text-lg font-bold text-charcoal">{title}</h2>
+        {subtitle && <p className="text-xs text-charcoal/40">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
 function CategoryRow({ icon, title, subtitle, filter, children }) {
   return (
     <div className="mb-10">
-      <div className="flex items-center gap-3 mb-4">
-        <span className="w-9 h-9 bg-soft-gold/10 rounded-xl flex items-center justify-center text-base">{icon}</span>
-        <div>
-          <h2 className="text-lg font-bold text-charcoal">{title}</h2>
-          {subtitle && <p className="text-xs text-charcoal/40">{subtitle}</p>}
-        </div>
-      </div>
+      <RowTitle icon={icon} title={title} subtitle={subtitle} />
       {filter}
       <HorizontalScroll gapClass="gap-4" label={title}>
         {children}
@@ -70,6 +78,9 @@ export default function PublicLanding({ adsEnabled }) {
     makeup: fallbackVendors('makeup'),
     snap: fallbackVendors('snap'),
   }));
+
+  // 홈 메인 제휴(HOME_MAIN). 슬롯 off·0건·실패·만료면 빈 목록 → 아래 일반 웨딩홀 줄을 그대로 보인다
+  const partners = usePartnerFeed('HOME_MAIN');
 
   useEffect(() => {
     getHalls().then(setHalls).catch(console.error);
@@ -106,37 +117,45 @@ export default function PublicLanding({ adsEnabled }) {
 
       {/* Catalog */}
       <section className="max-w-7xl mx-auto px-6 py-12">
-        <CategoryRow
-          icon="🏛"
-          title="웨딩홀"
-          subtitle={`예식장 비교 · ${halls.length}곳`}
-          filter={
-            <HallFilter halls={halls} area={area} onAreaChange={setArea} district={district} onDistrictChange={setDistrict} />
-          }
-        >
-          {areaHalls.slice(0, LANDING_HALLS).map((h) => (
-            <Link to="/calc" key={h.id} state={{ pick: { type: 'HALL', item: h, label: displayName(h.name) } }}>
-              <CardItem
-                media={<HallThumb hall={h} />}
-                name={displayName(h.name)}
-                title={h.name}
-                price={null}
-                description={[h.location, h.type].filter(Boolean).join(' · ')}
-                badge={`${h.pricePerPerson.toLocaleString()}원/인`}
-              />
-            </Link>
-          ))}
-          {areaHalls.length > LANDING_HALLS && (
-            <Link
-              to="/calc"
-              className="min-w-[160px] shrink-0 rounded-2xl border-2 border-dashed border-warm-beige/60 flex flex-col items-center justify-center text-sm text-charcoal/50 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
-            >
-              <span className="text-2xl mb-1">→</span>
-              {district ? `${area} ${district}` : area ?? '전체'} {areaHalls.length}곳
-              <span className="text-xs mt-0.5">계산기에서 모두 보기</span>
-            </Link>
-          )}
-        </CategoryRow>
+        {partners.length > 0 ? (
+          // 제휴 업체만 보이는 광고 줄(일반 업체·지역 필터를 섞지 않음). 일반 웨딩홀 탐색은 계산기에서 계속한다
+          <div className="mb-10">
+            <RowTitle icon="🤝" title="제휴 업체" subtitle="광고료를 받고 노출하는 제휴 업체입니다" />
+            <PartnerMarquee items={partners} label="제휴 업체" />
+          </div>
+        ) : (
+          <CategoryRow
+            icon="🏛"
+            title="웨딩홀"
+            subtitle={`예식장 비교 · ${halls.length}곳`}
+            filter={
+              <HallFilter halls={halls} area={area} onAreaChange={setArea} district={district} onDistrictChange={setDistrict} />
+            }
+          >
+            {areaHalls.slice(0, LANDING_HALLS).map((h) => (
+              <Link to="/calc" key={h.id} state={{ pick: { type: 'HALL', item: h, label: displayName(h.name) } }}>
+                <CardItem
+                  media={<HallThumb hall={h} />}
+                  name={displayName(h.name)}
+                  title={h.name}
+                  price={null}
+                  description={[h.location, h.type].filter(Boolean).join(' · ')}
+                  badge={`${h.pricePerPerson.toLocaleString()}원/인`}
+                />
+              </Link>
+            ))}
+            {areaHalls.length > LANDING_HALLS && (
+              <Link
+                to="/calc"
+                className="min-w-[160px] shrink-0 rounded-2xl border-2 border-dashed border-warm-beige/60 flex flex-col items-center justify-center text-sm text-charcoal/50 hover:text-soft-gold hover:border-soft-gold/40 transition-all"
+              >
+                <span className="text-2xl mb-1">→</span>
+                {district ? `${area} ${district}` : area ?? '전체'} {areaHalls.length}곳
+                <span className="text-xs mt-0.5">계산기에서 모두 보기</span>
+              </Link>
+            )}
+          </CategoryRow>
+        )}
 
         <CategoryRow icon="📸" title="스튜디오" subtitle="웨딩 촬영">
           {studios.map((s) => (
