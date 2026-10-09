@@ -35,11 +35,37 @@ export function areaCounts(halls) {
   return [...counts].map(([area, count]) => ({ area, count })).sort((a, b) => b.count - a.count);
 }
 
-// area 가 null 이면 전체. query 는 이름(원래·표시)과 위치에서 공백 무시하고 찾는다
-export function filterHalls(halls, { area = null, query = '' } = {}) {
+// 위치 둘째 단어가 시·군·구 ('서울 강남구' → '강남구'). '세종'처럼 한 단어면 null
+export function hallDistrict(hall) {
+  return hall.location?.trim().split(/\s+/)[1] || null;
+}
+
+// 시·군·구가 없는 웨딩홀을 묶는 칩 값
+export const NO_DISTRICT = '기타';
+
+// [{ district, count }] — area 안에서 많은 순(같으면 가나다), 시·군·구 없는 곳은 맨 뒤 NO_DISTRICT 로
+export function districtCounts(halls, area) {
+  const counts = new Map();
+  let none = 0;
+  for (const h of halls) {
+    if (hallArea(h) !== area) continue;
+    const d = hallDistrict(h);
+    if (d) counts.set(d, (counts.get(d) ?? 0) + 1);
+    else none++;
+  }
+  const list = [...counts]
+    .map(([district, count]) => ({ district, count }))
+    .sort((a, b) => b.count - a.count || a.district.localeCompare(b.district, 'ko'));
+  return none ? [...list, { district: NO_DISTRICT, count: none }] : list;
+}
+
+// area 가 null 이면 전체. district 는 area 와 함께일 때만 본다(NO_DISTRICT 는 시·군·구 없는 곳).
+// query 는 이름(원래·표시)과 위치에서 공백 무시하고 찾는다
+export function filterHalls(halls, { area = null, district = null, query = '' } = {}) {
   const q = query.replace(/\s+/g, '').toLowerCase();
   return halls.filter((h) => {
     if (area && hallArea(h) !== area) return false;
+    if (area && district && (hallDistrict(h) ?? NO_DISTRICT) !== district) return false;
     if (!q) return true;
     return [h.name, displayName(h.name), h.location]
       .some((v) => v?.replace(/\s+/g, '').toLowerCase().includes(q));
