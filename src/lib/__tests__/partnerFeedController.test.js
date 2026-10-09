@@ -81,6 +81,40 @@ describe('제휴 목록 재조회 컨트롤러', () => {
     expect(last()).toEqual([1]);
   });
 
+  it('noExpiryTimerAfterStalenessWithFarCardEnd — 30일 뒤 끝나는 카드·응답 없는 재조회면 60초 뒤 비우고 타이머 없이 멈춘다', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1, START + 30 * 86400000)]));
+    await flush();
+    await vi.advanceTimersByTimeAsync(REFETCH_MAX_MS); // 재조회 시작, 응답은 오지 않음
+    expect(calls).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(FRESH_MS - REFETCH_MAX_MS + 1);
+    expect(last()).toEqual([]);
+    const count = updates.length;
+    // 2^31-1 ms 를 넘는 setTimeout 은 바로 실행되어 반복 update 가 생긴다 — 만료 뒤에는 타이머를 잡지 않아야 한다
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(40 * 86400000);
+    expect(updates.length).toBe(count);
+    // 늦게라도 응답이 오면 다시 보인다
+    calls[1].resolve(result([item(1, Date.now() + 86400000)]));
+    await flush();
+    expect(last()).toEqual([1]);
+  });
+
+  it('timerDelaysStayWithin32Bit — 어떤 타이머도 2^31-1 ms 이상으로 잡지 않는다', async () => {
+    const spy = vi.spyOn(globalThis, 'setTimeout');
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1, START + 365 * 86400000)]));
+    await flush();
+    await vi.advanceTimersByTimeAsync(3 * 60000);
+    const delays = spy.mock.calls.map((args) => args[1] ?? 0);
+    expect(Math.max(...delays)).toBeLessThan(2 ** 31 - 1);
+    spy.mockRestore();
+    c.stop();
+  });
+
   it('tabReturnIgnoresOlderResponse — 탭 복귀로 다시 받으면 먼저 시작한 늦은 응답은 버린다', async () => {
     const c = setup();
     c.start();
