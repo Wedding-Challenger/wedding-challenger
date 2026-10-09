@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../api/client';
 import {
-  adminLoginUrl, deletePartner, deletePlacement, getAdminAudit, getAdminMe, getAdminPartners, getAdminPlacements,
+  adminLoginUrl, deletePartner, deletePlacement, getAdminAudit, getAdminMe, getAdminPartner, getAdminPartners, getAdminPlacements,
   listItems, savePartner, savePlacement, savePlacementOrder, searchCatalog,
 } from '../../api/adminPartners';
 import { stage } from '../../config/environment';
 import { safeImageUrl, safeLinkUrl } from '../../lib/partnerFeed';
 import {
-  BILLING_UNITS, CATEGORIES, CURRENCIES, PLACEMENT_STATUS, SLOTS, adminReducer, canSave, emptyPartnerForm,
-  emptyPlacementForm, formatKst, initialAdminState, needsReload, partnerToForm, placementToForm, reorder,
-  sortPlacements, toPartnerBody, toPlacementBody, validatePartner, validatePlacement,
+  BILLING_UNITS, CATEGORIES, CURRENCIES, PLACEMENT_STATUS, SLOTS, adminReducer, canSave, canSubmit, catalogLinkPatch,
+  catalogReducer, emptyPartnerForm, emptyPlacementForm, formatKst, initialAdminState, initialCatalog, latestPlacementForm,
+  needsReload, partnerToForm, placementToForm, reorder, sortPlacements, toPartnerBody, toPlacementBody, validatePartner,
+  validatePlacement, visiblePlacements,
 } from '../../lib/partnerAdmin';
 import PartnerCard from '../PartnerCard';
 
@@ -59,25 +60,28 @@ function AuthNotice({ auth }) {
 }
 
 function CatalogLink({ form, onChange, disabled }) {
-  const [kind, setKind] = useState('VENDOR');
+  // 결과는 검색 당시 종류와 함께 둔다. 종류를 바꾸면 결과·진행 중 검색을 버린다(src/lib/partnerAdmin.js catalogReducer)
+  const [catalog, dispatch] = useReducer(catalogReducer, initialCatalog);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState(null);
-  const [error, setError] = useState(null);
+  const seq = useRef(0);
+  const { kind, results, error } = catalog;
   const linked = form.vendorId != null ? `업체 #${form.vendorId}` : form.weddingHallId != null ? `웨딩홀 #${form.weddingHallId}` : null;
 
   const search = async () => {
-    setError(null);
+    const id = ++seq.current;
+    const searchedKind = kind;
+    dispatch({ type: 'SEARCH_START', seq: id });
     try {
-      setResults(listItems(await searchCatalog(kind, query.trim())));
+      const items = listItems(await searchCatalog(searchedKind, query.trim()));
+      dispatch({ type: 'SEARCH_OK', seq: id, kind: searchedKind, items });
     } catch (e) {
-      setResults(null);
-      setError(e.kind === 'login' ? '관리 API 로그인이 필요합니다' : '검색하지 못했습니다');
+      dispatch({ type: 'SEARCH_FAIL', seq: id, message: e.kind === 'login' ? '관리 API 로그인이 필요합니다' : '검색하지 못했습니다' });
     }
   };
 
   const pick = (item) => {
-    onChange(kind === 'VENDOR' ? { vendorId: item.id, weddingHallId: null } : { vendorId: null, weddingHallId: item.id });
-    setResults(null);
+    onChange(catalogLinkPatch(results, item));
+    dispatch({ type: 'PICKED' });
   };
 
   return (
@@ -92,7 +96,7 @@ function CatalogLink({ form, onChange, disabled }) {
         )}
       </p>
       <div className="flex flex-wrap gap-2">
-        <select aria-label="카탈로그 종류" className={`${input} w-auto`} value={kind} onChange={(e) => setKind(e.target.value)}>
+        <select aria-label="카탈로그 종류" className={`${input} w-auto`} value={kind} onChange={(e) => dispatch({ type: 'SET_KIND', kind: e.target.value })}>
           <option value="VENDOR">업체</option>
           <option value="WEDDING_HALL">웨딩홀</option>
         </select>
@@ -102,11 +106,13 @@ function CatalogLink({ form, onChange, disabled }) {
       {error && <p className="text-[11px] text-deep-rose">{error}</p>}
       {results && (
         <ul className="max-h-40 overflow-y-auto divide-y divide-warm-beige/30 text-sm">
-          {results.length === 0 && <li className="py-1 text-charcoal/40">결과 없음</li>}
-          {results.map((r) => (
+          {results.items.length === 0 && <li className="py-1 text-charcoal/40">결과 없음</li>}
+          {results.items.map((r) => (
             <li key={r.id} className="py-1 flex items-center justify-between gap-2">
               <span className="truncate">#{r.id} {r.name}{r.region ? ` · ${r.region}` : ''}</span>
-              <button type="button" className={secondary} onClick={() => pick(r)}>연결</button>
+              <button type="button" className={secondary} disabled={disabled} onClick={() => pick(r)}>
+                {results.kind === 'VENDOR' ? '업체로 연결' : '웨딩홀로 연결'}
+              </button>
             </li>
           ))}
         </ul>
@@ -115,7 +121,17 @@ function CatalogLink({ form, onChange, disabled }) {
   );
 }
 
-function PartnerForm({ form, setForm, onSubmit, onCancel, locked }) {
+// 409 가 난 폼: 저장을 잠그고 최신 내용을 받아 다시 적용하게 한다
+function ConflictBox({ onRefresh, disabled }) {
+  return (
+    <div role="alert" className="rounded-xl border border-deep-rose/30 bg-deep-rose/5 px-3 py-2 text-sm text-deep-rose space-y-2">
+      <p>다른 곳에서 먼저 바뀌어 저장하지 못했습니다. 최신 내용을 불러온 뒤 바꿀 내용을 다시 적용하세요.</p>
+      <button type="button" className={secondary} disabled={disabled} onClick={onRefresh}>최신 불러오기</button>
+    </div>
+  );
+}
+
+function PartnerForm({ form, setForm, onSubmit, onCancel, locked, conflict, onRefresh, refreshDisabled }) {
   const errors = validatePartner(form);
   const set = (patch) => setForm({ ...form, ...patch });
   const preview = {
@@ -135,6 +151,7 @@ function PartnerForm({ form, setForm, onSubmit, onCancel, locked }) {
     >
       <div className="space-y-3 min-w-0">
         <h3 className="font-bold text-charcoal">{form.id == null ? '새 제휴사 등록' : `제휴사 수정 #${form.id}`}</h3>
+        {conflict && <ConflictBox onRefresh={onRefresh} disabled={refreshDisabled} />}
         <Field id="p-name" title="업체명" error={errors.name}>
           <input id="p-name" className={input} value={form.name} maxLength={120} onChange={(e) => set({ name: e.target.value })} />
         </Field>
@@ -177,7 +194,7 @@ function PartnerForm({ form, setForm, onSubmit, onCancel, locked }) {
   );
 }
 
-function PlacementForm({ form, setForm, partners, onSubmit, onCancel, locked }) {
+function PlacementForm({ form, setForm, partners, onSubmit, onCancel, locked, conflict, onRefresh, refreshDisabled }) {
   const errors = validatePlacement(form);
   const set = (patch) => setForm({ ...form, ...patch });
 
@@ -187,6 +204,7 @@ function PlacementForm({ form, setForm, partners, onSubmit, onCancel, locked }) 
       onSubmit={(e) => { e.preventDefault(); if (Object.keys(errors).length === 0) onSubmit(toPlacementBody(form)); }}
     >
       <h3 className="font-bold text-charcoal">{form.id == null ? '새 노출 항목' : `노출 항목 수정 #${form.id}`}</h3>
+      {conflict && <ConflictBox onRefresh={onRefresh} disabled={refreshDisabled} />}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field id="pl-partner" title="제휴사" error={errors.partnerId}>
           <select id="pl-partner" className={input} value={form.partnerId} onChange={(e) => set({ partnerId: e.target.value })}>
@@ -276,22 +294,25 @@ function AuditList({ partner, onClose }) {
 
 export default function PartnerAdmin() {
   const [state, dispatch] = useReducer(adminReducer, initialAdminState);
-  const [slot, setSlot] = useState(SLOTS[1].value);
   const [partnerForm, setPartnerForm] = useState(null);
   const [placementForm, setPlacementForm] = useState(null);
   const [auditPartner, setAuditPartner] = useState(null);
   // 순서 초안은 그것을 만든 목록에만 붙는다(다시 읽으면 버린다)
   const [orderDraft, setOrderDraft] = useState(null);
+  const loadSeq = useRef(0);
+  const { slot } = state;
   const locked = !canSave(state);
 
+  // 요청 세대·슬롯을 응답에 묶는다. 나중에 시작한 불러오기가 있으면 이 응답은 reducer 가 버린다
   const load = useCallback(async () => {
-    dispatch({ type: 'LOAD_START' });
+    const seq = ++loadSeq.current;
+    dispatch({ type: 'LOAD_START', seq, slot });
     try {
       const me = await getAdminMe();
       const [partners, placements] = await Promise.all([getAdminPartners(), getAdminPlacements(slot)]);
-      dispatch({ type: 'LOAD_OK', me, partners: listItems(partners), placements: listItems(placements) });
+      dispatch({ type: 'LOAD_OK', seq, slot, me, partners: listItems(partners), placements: listItems(placements) });
     } catch (error) {
-      dispatch({ type: 'LOAD_FAIL', error });
+      dispatch({ type: 'LOAD_FAIL', seq, error });
     }
   }, [slot]);
 
@@ -304,25 +325,65 @@ export default function PartnerAdmin() {
     if (needsReload(state)) load();
   }, [state, load]);
 
-  const run = async (task, message) => {
-    if (!canSave(state)) return false;
+  // target: 409 가 났을 때 잠글 폼('partner' | 'placement' | 'order')
+  const run = async (task, message, target) => {
+    if (!(target ? canSubmit(state, target) : canSave(state))) return false;
     dispatch({ type: 'SAVE_START' });
     try {
       await task();
       dispatch({ type: 'SAVE_OK', message });
       return true;
     } catch (error) {
-      dispatch({ type: 'SAVE_FAIL', error });
+      dispatch({ type: 'SAVE_FAIL', error, target });
       return false;
     }
   };
 
   const partners = state.partners;
   const partnerName = (id) => partners.find((p) => p.id === id)?.name ?? `#${id}`;
-  const placements = orderDraft?.base === state.placements ? orderDraft.list : sortPlacements(state.placements);
-  const orderChanged = orderDraft?.base === state.placements;
+  // 선택 슬롯의 데이터만 보이고 다룬다
+  const current = visiblePlacements(state);
+  const placements = orderDraft?.base === current ? orderDraft.list : sortPlacements(current);
+  const orderChanged = orderDraft?.base === current && current.length > 0;
 
-  const move = (index, direction) => setOrderDraft({ base: state.placements, list: reorder(placements, index, direction) });
+  const move = (index, direction) => setOrderDraft({ base: current, list: reorder(placements, index, direction) });
+
+  // 폼을 닫거나 다른 항목으로 바꾸면 그 폼의 충돌 잠금도 끝난다
+  const openPartnerForm = (form) => {
+    setPartnerForm(form);
+    dispatch({ type: 'FORM_CLOSED', target: 'partner' });
+  };
+  const openPlacementForm = (form) => {
+    setPlacementForm(form);
+    dispatch({ type: 'FORM_CLOSED', target: 'placement' });
+  };
+  const closePartnerForm = () => openPartnerForm(null);
+  const closePlacementForm = () => openPlacementForm(null);
+
+  // 409 뒤 「최신 불러오기」: 최신 상세·version 으로 폼을 바꾼다(사용자가 바꿀 내용을 다시 적용)
+  const refreshPartnerForm = async () => {
+    try {
+      if (partnerForm.id != null) setPartnerForm(partnerToForm(await getAdminPartner(partnerForm.id)));
+      dispatch({ type: 'FORM_REFRESHED' });
+    } catch (error) {
+      if (error.kind === 'notFound') {
+        closePartnerForm();
+        dispatch({ type: 'SAVE_FAIL', error: { kind: 'validation', message: '이 제휴사는 이미 삭제됐습니다.' } });
+      } else {
+        dispatch({ type: 'SAVE_FAIL', error, target: 'partner' });
+      }
+    }
+  };
+  const refreshPlacementForm = () => {
+    const latest = latestPlacementForm(current, placementForm.id);
+    if (latest) {
+      setPlacementForm(latest);
+      dispatch({ type: 'FORM_REFRESHED' });
+    } else {
+      closePlacementForm();
+    }
+  };
+  const refreshDisabled = state.loading || state.stale;
 
   const removePartner = (p) => {
     if (!window.confirm(`'${p.name}' 제휴사를 삭제할까요? 관련 노출이 모두 공개에서 빠집니다(변경 기록은 남습니다).`)) return;
@@ -367,15 +428,18 @@ export default function PartnerAdmin() {
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-lg font-bold text-charcoal">제휴사</h2>
-              <button type="button" className={primary} disabled={locked} onClick={() => setPartnerForm(emptyPartnerForm())}>새 제휴사</button>
+              <button type="button" className={primary} disabled={locked} onClick={() => openPartnerForm(emptyPartnerForm())}>새 제휴사</button>
             </div>
             {partnerForm && (
               <PartnerForm
                 form={partnerForm}
                 setForm={setPartnerForm}
-                locked={locked}
-                onCancel={() => setPartnerForm(null)}
-                onSubmit={async (body) => { if (await run(() => savePartner(body), '저장했습니다')) setPartnerForm(null); }}
+                locked={!canSubmit(state, 'partner')}
+                conflict={state.conflict === 'partner'}
+                onRefresh={refreshPartnerForm}
+                refreshDisabled={refreshDisabled}
+                onCancel={closePartnerForm}
+                onSubmit={async (body) => { if (await run(() => savePartner(body), '저장했습니다', 'partner')) setPartnerForm(null); }}
               />
             )}
             <div className="overflow-x-auto rounded-2xl border border-warm-beige/40 bg-white">
@@ -398,7 +462,7 @@ export default function PartnerAdmin() {
                       <td className="px-3 py-2">{p.enabled ? '사용' : '중지'}</td>
                       <td className="px-3 py-2 text-charcoal/60">{p.vendorId != null ? `업체 #${p.vendorId}` : p.weddingHallId != null ? `웨딩홀 #${p.weddingHallId}` : '-'}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap space-x-1">
-                        <button type="button" className={secondary} disabled={locked} onClick={() => setPartnerForm(partnerToForm(p))}>수정</button>
+                        <button type="button" className={secondary} disabled={locked} onClick={() => openPartnerForm(partnerToForm(p))}>수정</button>
                         <button type="button" className={secondary} onClick={() => setAuditPartner(p)}>기록</button>
                         <button type="button" className={danger} disabled={locked} onClick={() => removePartner(p)}>삭제</button>
                       </td>
@@ -420,12 +484,12 @@ export default function PartnerAdmin() {
                     type="button"
                     aria-pressed={slot === s.value}
                     className={slot === s.value ? primary : secondary}
-                    onClick={() => setSlot(s.value)}
+                    onClick={() => dispatch({ type: 'SELECT_SLOT', slot: s.value })}
                   >
                     {s.label}
                   </button>
                 ))}
-                <button type="button" className={primary} disabled={locked || partners.length === 0} onClick={() => setPlacementForm(emptyPlacementForm(slot))}>새 노출 항목</button>
+                <button type="button" className={primary} disabled={locked || partners.length === 0} onClick={() => openPlacementForm(emptyPlacementForm(slot))}>새 노출 항목</button>
               </div>
             </div>
             <p className="text-xs text-charcoal/50">
@@ -436,9 +500,12 @@ export default function PartnerAdmin() {
                 form={placementForm}
                 setForm={setPlacementForm}
                 partners={partners}
-                locked={locked}
-                onCancel={() => setPlacementForm(null)}
-                onSubmit={async (body) => { if (await run(() => savePlacement(body), '저장했습니다')) setPlacementForm(null); }}
+                locked={!canSubmit(state, 'placement')}
+                conflict={state.conflict === 'placement'}
+                onRefresh={refreshPlacementForm}
+                refreshDisabled={refreshDisabled}
+                onCancel={closePlacementForm}
+                onSubmit={async (body) => { if (await run(() => savePlacement(body), '저장했습니다', 'placement')) setPlacementForm(null); }}
               />
             )}
             <div className="overflow-x-auto rounded-2xl border border-warm-beige/40 bg-white">
@@ -469,7 +536,7 @@ export default function PartnerAdmin() {
                         {pl.unitPrice == null ? '미입력' : `${Number(pl.unitPrice).toLocaleString('ko-KR')}원 / ${label(BILLING_UNITS, pl.billingUnit)}`}
                       </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap space-x-1">
-                        <button type="button" className={secondary} disabled={locked} onClick={() => setPlacementForm(placementToForm(pl))}>수정</button>
+                        <button type="button" className={secondary} disabled={locked} onClick={() => openPlacementForm(placementToForm(pl))}>수정</button>
                         {pl.enabled && <button type="button" className={secondary} disabled={locked} onClick={() => stopPlacement(pl)}>중지</button>}
                         <button type="button" className={danger} disabled={locked} onClick={() => removePlacement(pl)}>삭제</button>
                       </td>
@@ -483,8 +550,8 @@ export default function PartnerAdmin() {
                 <button
                   type="button"
                   className={primary}
-                  disabled={locked}
-                  onClick={async () => { if (await run(() => savePlacementOrder(slot, placements), '순서를 저장했습니다')) setOrderDraft(null); }}
+                  disabled={!canSubmit(state, 'order')}
+                  onClick={async () => { if (await run(() => savePlacementOrder(state.dataSlot, placements), '순서를 저장했습니다', 'order')) setOrderDraft(null); }}
                 >
                   순서 저장
                 </button>

@@ -58,6 +58,7 @@ export const adminLoginUrl = () => `${API_BASE_URL}${ADMIN}/session`;
 
 export const getAdminMe = () => adminRequest('/me');
 export const getAdminPartners = () => adminRequest('/partners?size=100');
+export const getAdminPartner = (id) => adminRequest(`/partners/${encodeURIComponent(id)}`);
 export const getAdminPlacements = (slot) => adminRequest(`/placements?slot=${encodeURIComponent(slot)}`);
 export const getAdminAudit = (partnerId) => adminRequest(`/audit?partnerId=${encodeURIComponent(partnerId)}`);
 export const searchCatalog = (kind, query) =>

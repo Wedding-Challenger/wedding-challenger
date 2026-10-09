@@ -99,12 +99,20 @@ export const orderPayload = (slot, list) => ({
 });
 
 // ---- 화면 상태 ----
+// 불러오기는 요청 세대(seq)·슬롯을 함께 싣고, 같은 seq 의 응답만 반영한다(늦게 온 이전 슬롯 응답 무시).
+// 쓰기는 「선택 슬롯 = 받은 데이터 슬롯」이고, 저장·충돌 뒤 다시 읽기가 성공한 상태(stale 아님)일 때만 허용한다.
+// 409 가 난 폼(conflict)은 「최신 불러오기」로 최신 version 을 받은 뒤에야 다시 저장할 수 있다.
 
 export const initialAdminState = {
   auth: 'unknown', // unknown | ok | login | forbidden | disabled
+  slot: SLOTS[1].value, // 선택한 노출 위치
+  dataSlot: null, // placements 가 어느 슬롯 응답인지
+  pendingSeq: null,
   loading: false,
   saving: false,
-  stale: false, // 저장·충돌 뒤 다시 읽어야 함
+  stale: false, // 저장·충돌 뒤 다시 읽기 성공 전
+  reloadRequested: false, // 자동으로 한 번 다시 읽기
+  conflict: null, // 409 가 난 폼: 'partner' | 'placement' | 'order'
   me: null,
   partners: [],
   placements: [],
@@ -112,7 +120,7 @@ export const initialAdminState = {
   error: null,
 };
 
-const CONFLICT_NOTICE = '다른 곳에서 바뀐 내용이 있어 최신 상태를 다시 불러왔습니다. 확인한 뒤 다시 저장하세요.';
+const CONFLICT_NOTICE = '다른 곳에서 바뀐 내용이 있어 최신 상태를 다시 불러왔습니다. 「최신 불러오기」로 최신 내용을 받은 뒤 바꿀 내용을 다시 적용해 저장하세요.';
 const AUTH_BY_KIND = { login: 'login', forbidden: 'forbidden', notFound: 'disabled' };
 
 function errorMessage(error) {
@@ -122,32 +130,48 @@ function errorMessage(error) {
 
 export function adminReducer(state, action) {
   switch (action.type) {
+    case 'SELECT_SLOT':
+      return { ...state, slot: action.slot };
     case 'LOAD_START':
-      return { ...state, loading: true, stale: false, error: null };
+      // stale 은 다시 읽기가 성공할 때만 푼다
+      return { ...state, loading: true, pendingSeq: action.seq, reloadRequested: false, error: null };
     case 'LOAD_OK':
+      if (action.seq !== state.pendingSeq) return state;
       return {
         ...state,
         loading: false,
+        pendingSeq: null,
+        stale: false,
         auth: 'ok',
+        dataSlot: action.slot,
         me: action.me,
         partners: action.partners,
         placements: action.placements,
+        // 순서 초안은 다시 읽으면 버려지므로 순서 충돌은 여기서 끝난다
+        conflict: state.conflict === 'order' ? null : state.conflict,
       };
     case 'LOAD_FAIL': {
+      if (action.seq !== state.pendingSeq) return state;
       const auth = AUTH_BY_KIND[action.error?.kind];
-      return { ...state, loading: false, ...(auth ? { auth } : { error: errorMessage(action.error) }) };
+      return { ...state, loading: false, pendingSeq: null, ...(auth ? { auth } : { error: errorMessage(action.error) }) };
     }
     case 'SAVE_START':
       if (state.saving) return state;
       return { ...state, saving: true, notice: null, error: null };
     case 'SAVE_OK':
-      return { ...state, saving: false, stale: true, notice: action.message ?? '저장했습니다' };
+      return { ...state, saving: false, stale: true, reloadRequested: true, notice: action.message ?? '저장했습니다' };
     case 'SAVE_FAIL': {
       const kind = action.error?.kind;
-      if (kind === 'conflict') return { ...state, saving: false, stale: true, notice: CONFLICT_NOTICE };
+      if (kind === 'conflict') {
+        return { ...state, saving: false, stale: true, reloadRequested: true, conflict: action.target ?? null, notice: CONFLICT_NOTICE };
+      }
       if (kind === 'login' || kind === 'forbidden') return { ...state, saving: false, auth: AUTH_BY_KIND[kind] };
       return { ...state, saving: false, error: errorMessage(action.error) };
     }
+    case 'FORM_REFRESHED':
+      return { ...state, conflict: null, notice: '최신 내용으로 바꿨습니다. 바꿀 내용을 다시 적용해 저장하세요.' };
+    case 'FORM_CLOSED':
+      return state.conflict === action.target ? { ...state, conflict: null } : state;
     case 'DISMISS':
       return { ...state, notice: null, error: null };
     default:
@@ -155,8 +179,40 @@ export function adminReducer(state, action) {
   }
 }
 
-export const canSave = (state) => state.auth === 'ok' && !state.loading && !state.saving;
-export const needsReload = (state) => state.stale && !state.loading;
+export const canSave = (state) =>
+  state.auth === 'ok' && !state.loading && !state.saving && !state.stale && state.dataSlot === state.slot;
+// 409 가 난 폼은 최신 불러오기 전까지 잠근다
+export const canSubmit = (state, target) => canSave(state) && state.conflict !== target;
+export const needsReload = (state) => state.reloadRequested && !state.loading;
+// 선택 슬롯의 데이터가 아니면 보이지 않는다(이전 슬롯 목록을 현재 슬롯처럼 다루지 않게)
+export const visiblePlacements = (state) => (state.dataSlot === state.slot ? state.placements : []);
+
+// ---- 카탈로그 검색 ----
+// 결과는 검색 당시 종류(kind)와 함께 둔다. 종류를 바꾸면 결과·진행 중 검색을 무효로 하고, 마지막 검색 응답만 받는다.
+
+export const initialCatalog = { kind: 'VENDOR', activeSeq: null, results: null, error: null };
+
+export function catalogReducer(state, action) {
+  switch (action.type) {
+    case 'SET_KIND':
+      return { ...state, kind: action.kind, activeSeq: null, results: null, error: null };
+    case 'SEARCH_START':
+      return { ...state, activeSeq: action.seq, results: null, error: null };
+    case 'SEARCH_OK':
+      if (action.seq !== state.activeSeq || action.kind !== state.kind) return state;
+      return { ...state, activeSeq: null, results: { kind: action.kind, items: action.items } };
+    case 'SEARCH_FAIL':
+      if (action.seq !== state.activeSeq) return state;
+      return { ...state, activeSeq: null, error: action.message };
+    case 'PICKED':
+      return { ...state, results: null };
+    default:
+      return state;
+  }
+}
+
+export const catalogLinkPatch = (results, item) =>
+  results.kind === 'VENDOR' ? { vendorId: item.id, weddingHallId: null } : { vendorId: null, weddingHallId: item.id };
 
 // ---- 화면 폼 ↔ API body ----
 
@@ -232,3 +288,9 @@ export const toPlacementBody = (f) => ({
 // 노출 목록 정렬: displayOrder ASC, id ASC (서버 공개 정렬과 같은 두 번째 키)
 export const sortPlacements = (list) =>
   [...list].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.id - b.id);
+
+// 409 뒤 「최신 불러오기」: 다시 읽은 목록에서 같은 노출 항목의 최신 값·version 으로 폼을 만든다(없으면 삭제된 것)
+export function latestPlacementForm(placements, id) {
+  const latest = placements.find((p) => p.id === id);
+  return latest ? placementToForm(latest) : null;
+}

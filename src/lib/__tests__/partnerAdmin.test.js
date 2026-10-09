@@ -1,21 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
-  adminReducer, canSave, initialAdminState, isoToKstInput, kstInputToIso, needsReload, orderPayload, reorder,
-  validatePartner, validatePlacement,
+  adminReducer, canSave, canSubmit, catalogLinkPatch, catalogReducer, initialAdminState, initialCatalog, isoToKstInput,
+  kstInputToIso, latestPlacementForm, needsReload, orderPayload, reorder, validatePartner, validatePlacement,
+  visiblePlacements,
 } from '../partnerAdmin';
 
 const err = (kind, message = '') => ({ kind, message });
 
+// 불러오기는 요청 세대(seq)와 슬롯을 함께 싣는다. 응답도 같은 seq·slot 으로 돌아와야 반영된다.
+const SLOT = 'BUDGET_PARTNERS';
+const start = (s, seq, slot = SLOT) => adminReducer(s, { type: 'LOAD_START', seq, slot });
+const loadOk = (s, seq, slot = SLOT, data = {}) => adminReducer(s, {
+  type: 'LOAD_OK', seq, slot, me: { subject: 'op', environment: 'dev' }, partners: [{ id: 1 }], placements: [], ...data,
+});
+
 describe('관리 화면 reducer', () => {
-  const loaded = adminReducer(
-    adminReducer(initialAdminState, { type: 'LOAD_START' }),
-    { type: 'LOAD_OK', me: { subject: 'op', environment: 'dev' }, partners: [{ id: 1 }], placements: [] },
-  );
+  const loaded = loadOk(start(initialAdminState, 1), 1);
 
   it('loadOkUnlocksSave — 불러오기 전·중에는 저장 잠금', () => {
     expect(canSave(initialAdminState)).toBe(false);
-    expect(canSave(adminReducer(initialAdminState, { type: 'LOAD_START' }))).toBe(false);
+    expect(canSave(start(initialAdminState, 1))).toBe(false);
     expect(loaded.auth).toBe('ok');
+    expect(loaded.dataSlot).toBe(SLOT);
     expect(canSave(loaded)).toBe(true);
   });
 
@@ -30,18 +36,19 @@ describe('관리 화면 reducer', () => {
     expect(done.saving).toBe(false);
     expect(needsReload(done)).toBe(true);
     expect(done.notice).toBe('저장했습니다');
-    const reloading = adminReducer(done, { type: 'LOAD_START' });
+    // 다시 읽기 전에는 옛 version 으로 또 저장하지 못한다
+    expect(canSave(done)).toBe(false);
+    const reloading = start(done, 2);
     expect(needsReload(reloading)).toBe(false);
+    expect(canSave(loadOk(reloading, 2))).toBe(true);
   });
 
   it('conflictReloadsLatestAndKeepsWarning — 409 는 최신 상태를 다시 받고 덮어쓰지 않는다', () => {
-    const conflict = adminReducer(adminReducer(loaded, { type: 'SAVE_START' }), { type: 'SAVE_FAIL', error: err('conflict') });
+    const conflict = adminReducer(adminReducer(loaded, { type: 'SAVE_START' }), { type: 'SAVE_FAIL', error: err('conflict'), target: 'partner' });
     expect(conflict.saving).toBe(false);
     expect(needsReload(conflict)).toBe(true);
     expect(conflict.notice).toMatch(/다른 곳에서 바뀐/);
-    const reloaded = adminReducer(adminReducer(conflict, { type: 'LOAD_START' }), {
-      type: 'LOAD_OK', me: loaded.me, partners: [{ id: 1, version: 9 }], placements: [],
-    });
+    const reloaded = loadOk(start(conflict, 2), 2, SLOT, { partners: [{ id: 1, version: 9 }] });
     expect(reloaded.partners).toEqual([{ id: 1, version: 9 }]);
     expect(reloaded.notice).toMatch(/다른 곳에서 바뀐/);
     expect(needsReload(reloaded)).toBe(false);
@@ -52,7 +59,7 @@ describe('관리 화면 reducer', () => {
     ['forbidden', 'forbidden'],
     ['notFound', 'disabled'],
   ])('loadFailureSetsAuthState — %s → %s', (kind, auth) => {
-    const s = adminReducer(adminReducer(initialAdminState, { type: 'LOAD_START' }), { type: 'LOAD_FAIL', error: err(kind) });
+    const s = adminReducer(start(initialAdminState, 1), { type: 'LOAD_FAIL', seq: 1, error: err(kind) });
     expect(s.auth).toBe(auth);
     expect(canSave(s)).toBe(false);
   });
@@ -71,6 +78,113 @@ describe('관리 화면 reducer', () => {
     const n = adminReducer(adminReducer(loaded, { type: 'SAVE_START' }), { type: 'SAVE_FAIL', error: err('network') });
     expect(n.error).toMatch(/네트워크/);
     expect(canSave(n)).toBe(true);
+  });
+});
+
+describe('슬롯 전환과 늦은 응답 (리뷰 지적 2)', () => {
+  const loaded = loadOk(start(initialAdminState, 1), 1);
+
+  it('olderSlotResponseArrivingLateIsIgnored — 먼저 시작한 이전 슬롯 응답이 늦게 와도 현재 슬롯을 덮지 않는다', () => {
+    // BUDGET(seq 2) 요청 중 HOME_MAIN 으로 바꿔 seq 3 요청 → 3 이 먼저, 2 가 나중에 도착
+    let s = start(loaded, 2, 'BUDGET_PARTNERS');
+    s = adminReducer(s, { type: 'SELECT_SLOT', slot: 'HOME_MAIN' });
+    s = start(s, 3, 'HOME_MAIN');
+    s = loadOk(s, 3, 'HOME_MAIN', { placements: [{ id: 30, slot: 'HOME_MAIN' }] });
+    expect(canSave(s)).toBe(true);
+    const late = loadOk(s, 2, 'BUDGET_PARTNERS', { placements: [{ id: 20, slot: 'BUDGET_PARTNERS' }] });
+    expect(late).toBe(s);
+    expect(late.dataSlot).toBe('HOME_MAIN');
+    expect(late.placements).toEqual([{ id: 30, slot: 'HOME_MAIN' }]);
+    // 늦은 실패도 무시
+    expect(adminReducer(s, { type: 'LOAD_FAIL', seq: 2, error: err('network') })).toBe(s);
+  });
+
+  it('lateOkDoesNotUnlockWhileNewerLoadPending — 오래된 응답이 저장 잠금을 풀지 않는다', () => {
+    let s = start(loaded, 2, 'BUDGET_PARTNERS');
+    s = adminReducer(s, { type: 'SELECT_SLOT', slot: 'HOME_MAIN' });
+    s = start(s, 3, 'HOME_MAIN');
+    s = loadOk(s, 2, 'BUDGET_PARTNERS');
+    expect(s.loading).toBe(true);
+    expect(canSave(s)).toBe(false);
+  });
+
+  it('writesOnlyWhenSelectedSlotMatchesData — 선택 슬롯과 받은 데이터 슬롯이 같을 때만 쓰기', () => {
+    const switched = adminReducer(loaded, { type: 'SELECT_SLOT', slot: 'HOME_MAIN' });
+    expect(switched.dataSlot).toBe('BUDGET_PARTNERS');
+    expect(canSave(switched)).toBe(false);
+    expect(visiblePlacements(switched)).toEqual([]);
+    const back = adminReducer(switched, { type: 'SELECT_SLOT', slot: 'BUDGET_PARTNERS' });
+    expect(canSave(back)).toBe(true);
+  });
+});
+
+describe('409 충돌 폼 잠금 (리뷰 지적 4)', () => {
+  const loaded = loadOk(start(initialAdminState, 1), 1, SLOT, {
+    placements: [{ id: 10, partnerId: 1, slot: SLOT, startsAt: '2026-10-01T00:00:00+09:00', endsAt: '2026-11-01T00:00:00+09:00', displayOrder: 0, enabled: false, version: 2 }],
+  });
+  const conflict = adminReducer(adminReducer(loaded, { type: 'SAVE_START' }), { type: 'SAVE_FAIL', error: err('conflict'), target: 'placement' });
+
+  it('conflictLocksThatFormUntilLatestLoaded — 충돌한 폼은 최신 불러오기 전까지 저장 잠금', () => {
+    const reloaded = loadOk(start(conflict, 2), 2, SLOT, {
+      placements: [{ ...loaded.placements[0], displayOrder: 4, version: 5 }],
+    });
+    expect(canSave(reloaded)).toBe(true);
+    expect(canSubmit(reloaded, 'placement')).toBe(false);
+    expect(canSubmit(reloaded, 'partner')).toBe(true);
+    // 「최신 불러오기」: 최신 상세·version 으로 폼을 바꾸고 나서야 저장 가능
+    const form = latestPlacementForm(reloaded.placements, 10);
+    expect(form.version).toBe(5);
+    expect(form.displayOrder).toBe('4');
+    const refreshed = adminReducer(reloaded, { type: 'FORM_REFRESHED' });
+    expect(canSubmit(refreshed, 'placement')).toBe(true);
+    expect(latestPlacementForm(reloaded.placements, 99)).toBeNull();
+  });
+
+  it('staleKeptUntilReloadSucceeds — 재조회가 실패하면 저장 잠금을 유지하고 자동 재시도로 돌지 않는다', () => {
+    const reloading = start(conflict, 2);
+    expect(canSave(reloading)).toBe(false);
+    const failed = adminReducer(reloading, { type: 'LOAD_FAIL', seq: 2, error: err('network') });
+    expect(canSave(failed)).toBe(false);
+    expect(canSubmit(failed, 'partner')).toBe(false);
+    expect(needsReload(failed)).toBe(false);
+    // 사용자가 새로고침해 성공하면 풀린다
+    expect(canSave(loadOk(start(failed, 3), 3))).toBe(true);
+  });
+
+  it('cancelClearsConflict — 충돌 폼을 닫으면 잠금 해제', () => {
+    const reloaded = loadOk(start(conflict, 2), 2);
+    expect(canSubmit(adminReducer(reloaded, { type: 'FORM_CLOSED', target: 'partner' }), 'placement')).toBe(false);
+    expect(canSubmit(adminReducer(reloaded, { type: 'FORM_CLOSED', target: 'placement' }), 'placement')).toBe(true);
+  });
+});
+
+describe('카탈로그 검색 kind (리뷰 지적 3)', () => {
+  const ok = (s, seq, kind, items) => catalogReducer(s, { type: 'SEARCH_OK', seq, kind, items });
+
+  it('kindChangeClearsResults — 업체 결과를 띄운 뒤 웨딩홀로 바꾸면 결과를 지운다', () => {
+    let s = catalogReducer(initialCatalog, { type: 'SEARCH_START', seq: 1 });
+    s = ok(s, 1, 'VENDOR', [{ id: 7, name: '샘플 업체' }]);
+    expect(s.results).toEqual({ kind: 'VENDOR', items: [{ id: 7, name: '샘플 업체' }] });
+    s = catalogReducer(s, { type: 'SET_KIND', kind: 'WEDDING_HALL' });
+    expect(s.results).toBeNull();
+  });
+
+  it('responseForPreviousKindIgnored — 종류를 바꾼 뒤 도착한 이전 검색 응답은 버린다', () => {
+    let s = catalogReducer(initialCatalog, { type: 'SEARCH_START', seq: 1 });
+    s = catalogReducer(s, { type: 'SET_KIND', kind: 'WEDDING_HALL' });
+    expect(ok(s, 1, 'VENDOR', [{ id: 7 }])).toBe(s);
+  });
+
+  it('olderSearchIgnored — 나중 검색이 시작되면 먼저 검색 응답은 버린다', () => {
+    let s = catalogReducer(initialCatalog, { type: 'SEARCH_START', seq: 1 });
+    s = catalogReducer(s, { type: 'SEARCH_START', seq: 2 });
+    expect(ok(s, 1, 'VENDOR', [{ id: 1 }])).toBe(s);
+    expect(ok(s, 2, 'VENDOR', [{ id: 2 }]).results.items).toEqual([{ id: 2 }]);
+  });
+
+  it('pickUsesKindOfSearch — 연결은 검색 당시 종류로 해석한다', () => {
+    expect(catalogLinkPatch({ kind: 'VENDOR', items: [] }, { id: 7 })).toEqual({ vendorId: 7, weddingHallId: null });
+    expect(catalogLinkPatch({ kind: 'WEDDING_HALL', items: [] }, { id: 7 })).toEqual({ vendorId: null, weddingHallId: 7 });
   });
 });
 
