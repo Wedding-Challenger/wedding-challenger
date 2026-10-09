@@ -104,7 +104,7 @@
 ## 구현 게이트
 nvm 먼저: `export NVM_DIR=$HOME/.nvm; . $NVM_DIR/nvm.sh`
 1. `npm test`
-2. `npx eslint <바뀐 파일들>` (레포 전체 `npm run lint`는 기존 오류 4건이 있어 실패한다 — SdmeCustomizer 3, BudgetContext 1)
+2. `npm run lint` (레포 전체, 오류 0이어야 한다)
 3. `npm run build` (사전 렌더링 7 라우트 포함)
 4. 화면 작업이면: dev 서버(`VITE_API_BASE_URL=https://api.wedding-challenger.com npx vite --port 5173`)에 Chrome headless(playwright-core, `channel: 'chrome'`)로 시나리오 확인, 360·390px 가로 넘침 0, 콘솔 에러 0
 
