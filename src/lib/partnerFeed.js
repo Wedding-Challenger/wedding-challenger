@@ -92,9 +92,3 @@ export function refetchAt(feed) {
   const wanted = feed.refreshAt == null ? REFETCH_MAX_MS : feed.refreshAt - feed.fetchedAt;
   return feed.fetchedAt + Math.min(Math.max(wanted, REFETCH_MIN_MS), REFETCH_MAX_MS);
 }
-
-// 다음에 화면을 다시 판정할 시각: 재조회·신선도 만료·가장 빠른 카드 종료 중 가장 이른 것
-export function nextWakeAt(feed, now) {
-  const ends = feed.items.map((i) => i.visibleUntil).filter((t) => t != null && t > now);
-  return Math.min(refetchAt(feed), feed.fetchedAt + FRESH_MS, ...ends);
-}

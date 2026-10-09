@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FRESH_MS, REFETCH_MAX_MS, REFETCH_MIN_MS, failedFeed, nextWakeAt, refetchAt, toFeed, visibleItems,
+  FRESH_MS, REFETCH_MAX_MS, REFETCH_MIN_MS, failedFeed, refetchAt, toFeed, visibleItems,
 } from '../partnerFeed';
 
 const item = (over) => ({
@@ -89,12 +89,5 @@ describe('재조회 시점', () => {
     expect(refetchAt(toFeed(result({ refreshAt: null }), NOW))).toBe(NOW + REFETCH_MAX_MS);
     // 실패 뒤에도 60초 안에 다시 시도
     expect(refetchAt(failedFeed(NOW))).toBeLessThanOrEqual(NOW + FRESH_MS);
-  });
-
-  it('wakesAtNextCardEnd — 카드가 끝나는 시각에 다시 그린다', () => {
-    const feed = toFeed(result(), NOW);
-    // 2번 카드 끝(이 시계 NOW+30초)이 재조회(50초)보다 빠르다
-    expect(nextWakeAt(feed, NOW)).toBe(NOW + 30000);
-    expect(nextWakeAt(feed, NOW + 30000)).toBe(NOW + REFETCH_MAX_MS);
   });
 });
