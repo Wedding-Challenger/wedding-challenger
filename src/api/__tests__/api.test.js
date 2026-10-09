@@ -48,6 +48,23 @@ describe('웨딩홀 API', () => {
   });
 });
 
+describe('개발계 API origin', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('stagingClientCallsDevOriginWithSingleApiPrefix — api-dev origin 에 /api/v1 을 한 번만 붙인다', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://api-dev.wedding-challenger.com/');
+    vi.resetModules();
+    const { getHalls: getDevHalls } = await import('../halls');
+    const fetch = vi.fn(async () => ok([HALL]));
+    vi.stubGlobal('fetch', fetch);
+    await getDevHalls();
+    expect(fetch).toHaveBeenCalledWith('https://api-dev.wedding-challenger.com/api/v1/wedding-halls');
+  });
+});
+
 describe('업체 API', () => {
   it('카테고리를 대문자 enum 으로 보내고 items 를 소문자 카테고리로 바꾼다', async () => {
     const fetch = vi.fn(async () => ok({
