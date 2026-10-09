@@ -19,6 +19,7 @@ function HallSection() {
   const [weddingHalls, setWeddingHalls] = useState(FALLBACK_HALLS);
   const [viewMode, setViewMode] = useState('card');
   const [area, setArea] = useState(null);
+  const [district, setDistrict] = useState(null);
   const [query, setQuery] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const { guestCount, rentRange, foodRange, getHallBudget } = useBudget();
@@ -29,9 +30,14 @@ function HallSection() {
     () => budgetFilter(weddingHalls, { hallBudget, guestCount, rentRange, foodRange }),
     [weddingHalls, hallBudget, guestCount, rentRange, foodRange],
   );
-  // 고른 지역이 조건 때문에 사라지면 전체로 본다
+  // 고른 지역이 조건 때문에 사라지면 전체로, 고른 시·군·구가 사라지면 그 시·도 전체로 본다
   const activeArea = area && passed.some((h) => hallArea(h) === area) ? area : null;
-  const filtered = useMemo(() => filterHalls(passed, { area: activeArea, query }), [passed, activeArea, query]);
+  const activeDistrict =
+    activeArea && district && filterHalls(passed, { area: activeArea, district }).length > 0 ? district : null;
+  const filtered = useMemo(
+    () => filterHalls(passed, { area: activeArea, district: activeDistrict, query }),
+    [passed, activeArea, activeDistrict, query],
+  );
 
   useEffect(() => {
     getHalls().then(setWeddingHalls).catch(console.error);
@@ -67,6 +73,8 @@ function HallSection() {
         halls={passed}
         area={activeArea}
         onAreaChange={setArea}
+        district={activeDistrict}
+        onDistrictChange={setDistrict}
         query={query}
         onQueryChange={setQuery}
         resultCount={filtered.length}
