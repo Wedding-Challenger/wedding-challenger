@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AD_LABEL, AD_LABEL_COLOR, AD_NOTICE, contrastRatio, disclosureReducer, initialDisclosure, isDisclosureOpen,
+  AD_LABEL, AD_LABEL_COLOR, AD_NOTICE, TOOLTIP_WIDTH, contrastRatio, disclosureReducer, initialDisclosure, isDisclosureOpen, tooltipAlign,
 } from '../partnerDisclosure';
 
 // 쿠팡식 광고 표시(승인 G4·조율자 H3): 모든 지면 카드 오른쪽 아래 작은 「광고 ⓘ」(항상 보임, 대비 4.5:1 이상),
@@ -51,5 +51,17 @@ describe('ⓘ 말풍선 상태', () => {
     expect(isDisclosureOpen(s)).toBe(true);
     s = disclosureReducer(s, { type: 'FOCUS', value: false });
     expect(isDisclosureOpen(s)).toBe(false);
+  });
+});
+
+describe('말풍선 위치', () => {
+  it('tooltipStaysInsideViewport — 오른쪽 정렬로 왼쪽이 넘치면 왼쪽 정렬, 둘 다 넘치면 화면 왼쪽 여백에 맞춘다', () => {
+    expect(TOOLTIP_WIDTH).toBe(240);
+    // 카드 오른쪽 끝 근처(화면 가운데 이후) → 버튼 오른쪽에 맞춰 왼쪽으로 펼친다
+    expect(tooltipAlign({ left: 330, right: 350 }, 390)).toEqual({ side: 'right', shift: 0 });
+    // 화면 왼쪽 가장자리 근처 → 버튼 왼쪽에 맞춰 오른쪽으로 펼친다
+    expect(tooltipAlign({ left: 30, right: 46 }, 390)).toEqual({ side: 'left', shift: 0 });
+    // 좁은 화면에서 어느 쪽도 다 안 들어가면 화면 안으로 민다(여백 8px)
+    expect(tooltipAlign({ left: 150, right: 166 }, 300)).toEqual({ side: 'left', shift: -98 });
   });
 });

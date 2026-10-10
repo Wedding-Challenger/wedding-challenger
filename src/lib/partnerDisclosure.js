@@ -59,3 +59,17 @@ export function disclosureReducer(s, action) {
       return s;
   }
 }
+
+// ---- 말풍선 위치 ----
+// 기본은 「광고 ⓘ」 오른쪽 끝에 맞춰 왼쪽으로 펼친다(카드 오른쪽 아래). 화면 왼쪽을 넘으면 왼쪽 끝에 맞춰 오른쪽으로,
+// 그래도 넘치면 화면 안(여백 8px)으로 민다. anchor 는 「광고 ⓘ」 묶음의 화면 좌표.
+export const TOOLTIP_WIDTH = 240;
+const EDGE = 8;
+
+export function tooltipAlign(anchor, viewportWidth) {
+  const width = Math.min(TOOLTIP_WIDTH, viewportWidth - EDGE * 2);
+  if (anchor.right - width >= EDGE) return { side: 'right', shift: 0 };
+  if (anchor.left + width <= viewportWidth - EDGE) return { side: 'left', shift: 0 };
+  const shift = Math.max(viewportWidth - EDGE - width - anchor.left, EDGE - anchor.left);
+  return { side: 'left', shift: Math.round(shift) };
+}
