@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { loadEnv } from 'vite';
@@ -13,7 +14,8 @@ const SITE_DEV = 'https://develop.wedding-challenger.pages.dev';
 const LOCAL_API = 'http://localhost:8080';
 const LOCAL_SITE = 'http://localhost:5173';
 
-const env = (api, site) => ({ VITE_API_BASE_URL: api, VITE_SITE_URL: site });
+// production·staging 은 추적되는 mode 파일의 레이아웃 플래그(VITE_PARTNER_SIDE_LAYOUT)가 'true'/'false' 로 있어야 한다
+const env = (api, site, layout = 'false') => ({ VITE_API_BASE_URL: api, VITE_SITE_URL: site, VITE_PARTNER_SIDE_LAYOUT: layout });
 
 describe('빌드 환경 resolver', () => {
   it('stagingResolvesOnlyDevOriginsAndDisablesAdsIndexing — staging 은 dev 주소만 쓰고 광고·색인을 끈다', () => {
@@ -23,6 +25,7 @@ describe('빌드 환경 resolver', () => {
       siteUrl: SITE_DEV,
       adsEnabled: false,
       indexable: false,
+      partnerSideLayoutEnabled: false,
     });
     // 끝 슬래시 하나는 origin 으로 정규화
     expect(resolveBuildConfig('staging', env(`${API_DEV}/`, `${SITE_DEV}/`)).apiOrigin).toBe(API_DEV);
@@ -55,6 +58,7 @@ describe('빌드 환경 resolver', () => {
       siteUrl: SITE_PROD,
       adsEnabled: true,
       indexable: true,
+      partnerSideLayoutEnabled: false,
     });
     // 게시자 ID 단일 출처는 ads.js — resolver 결과에 ID 를 복제하지 않는다
     expect(JSON.stringify(resolveBuildConfig('production', env(API_PROD, SITE_PROD)))).not.toContain(ADSENSE_CLIENT);
@@ -74,6 +78,7 @@ describe('빌드 환경 resolver', () => {
       siteUrl: LOCAL_SITE,
       adsEnabled: false,
       indexable: false,
+      partnerSideLayoutEnabled: false,
     });
     const { default: viteConfig } = await import('../../vite.config.js');
     const config = viteConfig({ mode: 'test', command: 'serve' });
@@ -96,7 +101,7 @@ describe('test mode 격리', () => {
     writeFileSync(path.join(dir, '.env.local'), `VITE_API_BASE_URL=${API_PROD}\nVITE_SITE_URL=${SITE_PROD}\n`);
     process.env.VITE_API_BASE_URL = API_PROD;
 
-    const fixed = { stage: 'test', apiOrigin: LOCAL_API, siteUrl: LOCAL_SITE, adsEnabled: false, indexable: false };
+    const fixed = { stage: 'test', apiOrigin: LOCAL_API, siteUrl: LOCAL_SITE, adsEnabled: false, indexable: false, partnerSideLayoutEnabled: false };
     expect(resolveBuildConfig('test', env(API_PROD, SITE_PROD))).toEqual(fixed);
 
     const spy = vi.fn(loadEnv);
@@ -163,5 +168,63 @@ describe('development 설정 변경 재해석', () => {
     writeFileSync(envFile, `VITE_API_BASE_URL=${API_PROD}\n`);
     expect(evaluate).toThrow(/VITE_API_BASE_URL/);
     expect(process.env.VITE_API_BASE_URL).toBeUndefined();
+  });
+});
+
+// 제휴 사이드 레이아웃 플래그(계획서 C10·D3): 보안이 아닌 레이아웃 적용 시점. 값 원천은 추적되는 .env.production·.env.staging,
+// 변경은 develop→master PR 로만. 프로세스 env·*.local 덮어쓰기는 빌드 실패. 'true'/'false' 외 값도 실패.
+describe('레이아웃 플래그 VITE_PARTNER_SIDE_LAYOUT', () => {
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  let dir;
+  const saved = process.env.VITE_API_BASE_URL;
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+    if (saved === undefined) delete process.env.VITE_API_BASE_URL;
+    else process.env.VITE_API_BASE_URL = saved;
+  });
+
+  it('strictTrueFalseOnlyInProductionAndStaging — 정확한 문자열 true/false 만 허용', () => {
+    expect(resolveBuildConfig('production', env(API_PROD, SITE_PROD, 'true')).partnerSideLayoutEnabled).toBe(true);
+    expect(resolveBuildConfig('staging', env(API_DEV, SITE_DEV, 'false')).partnerSideLayoutEnabled).toBe(false);
+    for (const bad of [undefined, '', 'TRUE', 'False', '1', '0', ' true', 'yes']) {
+      expect(() => resolveBuildConfig('production', { ...env(API_PROD, SITE_PROD), VITE_PARTNER_SIDE_LAYOUT: bad })).toThrow(/VITE_PARTNER_SIDE_LAYOUT/);
+      expect(() => resolveBuildConfig('staging', { ...env(API_DEV, SITE_DEV), VITE_PARTNER_SIDE_LAYOUT: bad })).toThrow(/VITE_PARTNER_SIDE_LAYOUT/);
+    }
+  });
+
+  it('developmentDefaultsFalseAndTestIgnoresEnv — development 기본 false, test 는 env 를 보지 않고 false', () => {
+    expect(resolveBuildConfig('development', {}).partnerSideLayoutEnabled).toBe(false);
+    expect(resolveBuildConfig('development', { VITE_PARTNER_SIDE_LAYOUT: 'true' }).partnerSideLayoutEnabled).toBe(true);
+    expect(() => resolveBuildConfig('development', { VITE_PARTNER_SIDE_LAYOUT: 'on' })).toThrow(/VITE_PARTNER_SIDE_LAYOUT/);
+    expect(resolveBuildConfig('test', { VITE_PARTNER_SIDE_LAYOUT: 'true' }).partnerSideLayoutEnabled).toBe(false);
+  });
+
+  it('trackedModeFilesStartFalse — 추적되는 production·staging 파일의 초기값은 문자열 false', () => {
+    for (const mode of ['production', 'staging']) {
+      const text = readFileSync(path.join(repo, `.env.${mode}`), 'utf8');
+      expect(text).toMatch(/^VITE_PARTNER_SIDE_LAYOUT=false$/m);
+    }
+  });
+
+  it('trackedFileIsTheOnlySource — 추적 파일 값을 쓰고 *.local·프로세스 env 덮어쓰기는 실패', () => {
+    dir = mkdtempSync(path.join(tmpdir(), 'wc-layout-'));
+    // test 초기화가 넣은 client API 값이 loadEnv 에 섞이지 않게 비운다(origin 검증과 무관한 플래그만 본다)
+    delete process.env.VITE_API_BASE_URL;
+    writeFileSync(path.join(dir, '.env.production'), `VITE_API_BASE_URL=${API_PROD}\nVITE_SITE_URL=${SITE_PROD}\nVITE_PARTNER_SIDE_LAYOUT=true\n`);
+    expect(resolveModeConfig({ mode: 'production', root: dir, loadEnv, processEnv: {} }).partnerSideLayoutEnabled).toBe(true);
+
+    // 프로세스 env(워크플로 변수 등)로 같은 키를 넣으면 같은 값이어도 실패
+    expect(() => resolveModeConfig({ mode: 'production', root: dir, loadEnv, processEnv: { VITE_PARTNER_SIDE_LAYOUT: 'true' } }))
+      .toThrow(/VITE_PARTNER_SIDE_LAYOUT/);
+
+    // *.local 덮어쓰기도 실패
+    writeFileSync(path.join(dir, '.env.production.local'), 'VITE_PARTNER_SIDE_LAYOUT=false\n');
+    expect(() => resolveModeConfig({ mode: 'production', root: dir, loadEnv, processEnv: {} })).toThrow(/VITE_PARTNER_SIDE_LAYOUT/);
+    rmSync(path.join(dir, '.env.production.local'));
+
+    // 추적 파일에 키가 없으면 실패
+    writeFileSync(path.join(dir, '.env.production'), `VITE_API_BASE_URL=${API_PROD}\nVITE_SITE_URL=${SITE_PROD}\n`);
+    expect(() => resolveModeConfig({ mode: 'production', root: dir, loadEnv, processEnv: {} })).toThrow(/VITE_PARTNER_SIDE_LAYOUT/);
   });
 });

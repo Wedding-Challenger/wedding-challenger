@@ -5,7 +5,9 @@ import { BudgetProvider } from '../../context/BudgetContext';
 
 // 공개 API·신선도 판정은 usePartnerFeed(→ partnerFeed 순수 함수 테스트)가 맡는다. 여기서는 그 결과를 주입한다.
 const feed = vi.hoisted(() => ({ items: {} }));
-vi.mock('../../hooks/usePartnerFeed', () => ({ default: (slot) => feed.items[slot] ?? [] }));
+vi.mock('../../hooks/usePartnerFeed', () => ({
+  default: (slot) => ({ items: feed.items[slot] ?? [], prepareSend: async () => null }),
+}));
 
 const { default: PartnerSection } = await import('../PartnerSection');
 const { default: SdmeCustomizer } = await import('../SdmeCustomizer');
@@ -28,8 +30,11 @@ describe('예산 계산 제휴 업체 섹션', () => {
     feed.items.BUDGET_PARTNERS = [ITEM];
     const html = renderToString(<PartnerSection />);
     expect(html).toMatch(/<h3[^>]*>.*제휴 업체/s);
-    expect(html).toContain('광고료를 받고 노출하는 제휴 업체입니다');
-    expect(html).toContain('광고 · 제휴 업체');
+    // 승인 G4: 섹션 안내 문장·큰 배지 대신 카드 오른쪽 아래 「광고 ⓘ」
+    expect(html).not.toContain('광고료를 받고 노출하는 제휴 업체입니다');
+    expect(html).not.toContain('광고 · 제휴 업체');
+    expect(html).toContain('<span aria-hidden="true">광고</span>');
+    expect(html).toContain('aria-label="광고 안내 보기"');
     expect(html).toContain('href="https://example.com/"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="sponsored noopener noreferrer"');
@@ -44,15 +49,12 @@ describe('예산 계산 제휴 업체 섹션', () => {
     expect(renderToString(<PartnerSection />)).toBe('');
   });
 
-  it('placedAfterSdmeRangeAndBeforeSnap — 스드메 범위 다음, 스냅 촬영 바로 위', () => {
+  it('movedOutOfSdmeCustomizer — 스드메 안(스냅 위) 예전 자리에는 없다(바구니 아래로 이동, 계획서 B1 — partnerPlacements.test.jsx)', () => {
     feed.items.BUDGET_PARTNERS = [ITEM];
     const html = renderToString(<BudgetProvider><SdmeCustomizer /></BudgetProvider>);
-    const range = html.indexOf('스드메 가격 범위');
-    const partners = html.indexOf('광고료를 받고 노출하는 제휴 업체입니다');
-    const snap = html.indexOf('스냅 촬영');
-    expect(range).toBeGreaterThan(-1);
-    expect(partners).toBeGreaterThan(range);
-    expect(snap).toBeGreaterThan(partners);
+    expect(html).toContain('스드메 가격 범위');
+    expect(html).not.toContain('example.com');
+    expect(html).not.toContain('제휴 업체');
   });
 
   it('shownEvenWhenSnapOffAndDoesNotTouchBudget — 스냅을 꺼도 보이고, 카드는 예산 상태를 바꾸는 버튼이 아니다', () => {
@@ -62,11 +64,10 @@ describe('예산 계산 제휴 업체 섹션', () => {
       includeStudio: false, includeDress: false, includeMakeup: false, includeSnap: false,
       includeRing: false, includeBouquet: false, includeHanbok: false, dispatch,
     };
-    const html = renderToString(<BudgetContext.Provider value={value}><SdmeCustomizer /></BudgetContext.Provider>);
-    expect(html).toContain('광고료를 받고 노출하는 제휴 업체입니다');
+    const html = renderToString(<BudgetContext.Provider value={value}><SdmeCustomizer /><PartnerSection /></BudgetContext.Provider>);
     expect(html).not.toContain('스냅 촬영');
-    // 카드는 외부 링크(<a>)뿐이고 예산 담기 표시(✓)·선택 상태가 없다
-    const section = html.slice(html.indexOf('광고료를 받고'));
+    // 제휴 섹션은 스냅 토글과 무관하게 보인다. 카드는 외부 링크(<a>)와 광고 안내 버튼뿐이고 예산 담기 표시(✓)·선택 상태가 없다
+    const section = html.slice(html.indexOf('data-partner-slot="BUDGET_PARTNERS"'));
     expect(section).toContain('<a ');
     expect(section).not.toContain('✓');
     expect(dispatch).not.toHaveBeenCalled();

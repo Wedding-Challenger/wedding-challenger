@@ -5,6 +5,7 @@ import WeddingHallCard from './WeddingHallCard';
 import SdmeCustomizer from './SdmeCustomizer';
 import BudgetBasket from './BudgetBasket';
 import HorizontalScroll from './HorizontalScroll';
+import PartnerSection from './PartnerSection';
 import HallRangeCompare from './HallRangeCompare';
 import AdSlot from './AdSlot';
 import { AD_SLOTS } from '../config/ads';
@@ -173,11 +174,22 @@ export default function BudgetCalculator({ adsEnabled }) {
             </div>
             <SdmeCustomizer />
           </section>
+
+          {/* AdSense 는 aside 밖 본문 열 하단(계획서 C6). 데스크톱 표시·동의·환경 게이트는 그대로 */}
+          <AdSlot enabled={adsEnabled} slot={AD_SLOTS.calcSidebar} format="auto" className="hidden lg:block" />
         </div>
 
         <aside className="w-full lg:w-[360px] shrink-0">
-          <BudgetBasket />
-          <AdSlot enabled={adsEnabled} slot={AD_SLOTS.calcSidebar} format="auto" className="hidden lg:block mt-6" />
+          {/* 바구니와 바로 아래 제휴 세로 목록을 한 sticky 래퍼로 묶는다(계획서 B1·C7). 큰 화면에서만 붙잡고, 화면 높이를 넘으면
+              래퍼 안에서 스크롤한다(바깥 페이지로 스크롤이 넘어가지 않음). 상단은 고정 Header 아래에 둔다. 모바일은 본문 뒤 같은 순서. */}
+          <div
+            role="region"
+            aria-label="견적 바구니와 제휴 업체"
+            className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pb-2"
+          >
+            <BudgetBasket />
+            <PartnerSection />
+          </div>
         </aside>
       </div>
     </div>

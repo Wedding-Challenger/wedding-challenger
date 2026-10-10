@@ -13,8 +13,11 @@ import About from './components/About';
 import Guide from './components/Guide';
 import Checklist from './components/Checklist';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import PrivacyPolicyPrevious from './components/PrivacyPolicyPrevious';
 import Terms from './components/Terms';
 import AdminLayout from './components/admin/AdminLayout';
+import PartnerMeasureProvider from './context/PartnerMeasureProvider';
+import { useOverlayHeader } from './context/partnerMeasureShared';
 import './App.css';
 
 const navLinkClass = ({ isActive }) =>
@@ -22,9 +25,11 @@ const navLinkClass = ({ isActive }) =>
     isActive ? 'bg-white text-charcoal shadow-sm' : 'text-charcoal/50 hover:text-charcoal'
   }`;
 
-function Header() {
+export function Header() {
+  // sticky Header 가 가린 화면 위쪽은 제휴 노출 판정에서 뺀다(실측 높이 → IntersectionObserver rootMargin 위쪽)
+  const headerRef = useOverlayHeader();
   return (
-    <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-warm-beige/30">
+    <header ref={headerRef} className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-warm-beige/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
         <NavLink to="/" className="flex items-center gap-2 sm:gap-3 shrink-0 hover:opacity-80 transition-opacity">
           <span className="text-2xl">💍</span>
@@ -79,7 +84,7 @@ function useRouteTitle() {
   }, [pathname]);
 }
 
-// 공개 레이아웃: Header·Footer·광고·동의 배너. 관리 화면(/admin/*)은 이 레이아웃 밖이다.
+// 공개 레이아웃: Header·Footer·광고·동의 배너. 관리 화면(/admin/*)은 이 레이아웃 밖이다(제휴 측정 context 도 공개 화면에만).
 function PublicLayout() {
   useRouteTitle();
   // 사전 렌더링 HTML 과 첫 렌더를 맞추려고 기본값(미동의·배너 닫힘)으로 시작한 뒤 저장값을 읽는다.
@@ -119,15 +124,17 @@ function PublicLayout() {
   const adsAllowed = adsEnabled && consent.ads;
 
   return (
-    <div className="min-h-screen">
-      <AdSenseLoader enabled={adsAllowed} />
-      <Header />
-      <main>
-        <Outlet context={{ adsEnabled: adsAllowed }} />
-      </main>
-      <Footer adsEnabled={adsAllowed} onOpenConsent={() => setBannerOpen(true)} />
-      <ConsentBanner open={bannerOpen} onDecide={handleDecide} />
-    </div>
+    <PartnerMeasureProvider>
+      <div className="min-h-screen">
+        <AdSenseLoader enabled={adsAllowed} />
+        <Header />
+        <main>
+          <Outlet context={{ adsEnabled: adsAllowed }} />
+        </main>
+        <Footer adsEnabled={adsAllowed} onOpenConsent={() => setBannerOpen(true)} />
+        <ConsentBanner open={bannerOpen} onDecide={handleDecide} />
+      </div>
+    </PartnerMeasureProvider>
   );
 }
 
@@ -151,6 +158,7 @@ export default function App() {
         <Route path="/guide" element={<Guide />} />
         <Route path="/checklist" element={<Checklist />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/privacy/previous" element={<PrivacyPolicyPrevious />} />
         <Route path="/terms" element={<Terms />} />
         {/* 없는 공개 경로도 Header·Footer 는 그대로 그린다 */}
         <Route path="*" element={null} />

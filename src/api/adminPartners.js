@@ -21,7 +21,7 @@ export class AdminApiError extends Error {
 
 const KIND_BY_STATUS = { 400: 'validation', 401: 'login', 403: 'forbidden', 404: 'notFound', 409: 'conflict' };
 
-async function adminRequest(path, { method = 'GET', body } = {}) {
+export async function adminRequest(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json', 'X-WC-Admin-Request': '1' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let res;
@@ -50,6 +50,31 @@ async function adminRequest(path, { method = 'GET', body } = {}) {
   return json.result;
 }
 
+// 파일(CSV) 내려받기: 같은 Access 쿠키·redirect 수동·표지 헤더. 2xx 인데 요청한 형식이 아니면(로그인 HTML) '로그인 필요'.
+// 오류 응답은 JSON 본문이면 그 분류·메시지를 쓴다. 성공하면 Blob.
+export async function adminDownload(path, accept) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}${ADMIN}${path}`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'manual',
+      headers: { Accept: accept, 'X-WC-Admin-Request': '1' },
+    });
+  } catch (err) {
+    throw new AdminApiError('network', 0, err.message);
+  }
+  if (res.type === 'opaqueredirect' || res.status === 0) throw new AdminApiError('login', res.status);
+  const type = res.headers?.get?.('content-type') ?? '';
+  if (!res.ok) {
+    const json = type.includes('json') ? await res.json().catch(() => null) : null;
+    throw new AdminApiError(KIND_BY_STATUS[res.status] ?? 'server', res.status, json?.message, json?.code);
+  }
+  if (!type.toLowerCase().startsWith(accept)) throw new AdminApiError('login', res.status);
+  return res.blob();
+}
+
 // 목록 응답은 배열 또는 페이지({ items, … }) 둘 다 받는다
 export const listItems = (result) => (Array.isArray(result) ? result : result?.items ?? []);
 
@@ -58,6 +83,26 @@ export const adminLoginUrl = () => `${API_BASE_URL}${ADMIN}/session`;
 
 export const getAdminMe = () => adminRequest('/me');
 export const getAdminPartners = () => adminRequest('/partners?size=100');
+
+// 관리 업체 전체(리포트 업체 필터용). 페이지 응답({ items, page, totalPages } 또는 { items, hasNext })이면 끝까지 받고,
+// 배열 응답이면 한 번. 페이지 번호는 0부터. 서버 이상으로 끝나지 않는 일을 막으려 최대 50페이지.
+const PARTNER_PAGE_SIZE = 100;
+const MAX_PARTNER_PAGES = 50;
+
+export async function getAllAdminPartners() {
+  const all = [];
+  for (let page = 0; page < MAX_PARTNER_PAGES; page++) {
+    const result = await adminRequest(`/partners?page=${page}&size=${PARTNER_PAGE_SIZE}`);
+    if (Array.isArray(result)) return [...all, ...result];
+    const items = result?.items ?? [];
+    all.push(...items);
+    const more = typeof result?.hasNext === 'boolean'
+      ? result.hasNext
+      : Number.isInteger(result?.totalPages) && page + 1 < result.totalPages;
+    if (!more || items.length === 0) break;
+  }
+  return all;
+}
 export const getAdminPartner = (id) => adminRequest(`/partners/${encodeURIComponent(id)}`);
 export const getAdminPlacements = (slot) => adminRequest(`/placements?slot=${encodeURIComponent(slot)}`);
 export const getAdminAudit = (partnerId) => adminRequest(`/audit?partnerId=${encodeURIComponent(partnerId)}`);

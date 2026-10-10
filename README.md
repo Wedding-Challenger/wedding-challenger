@@ -1,6 +1,6 @@
 # 웨딩챌린저 (프론트엔드)
 
-예산과 하객 수로 웨딩홀·스드메·스냅 견적을 만들어 주는 웨딩챌린저의 React/Vite 프론트엔드다. 빌드는 client → SSR → 라우트별 사전 렌더링(7개 라우트) 순서이며, 결과물은 Cloudflare Pages 에 배포한다. 백엔드 API 계약은 `src/api/client.js` 주석을 본다.
+예산과 하객 수로 웨딩홀·스드메·스냅 견적을 만들어 주는 웨딩챌린저의 React/Vite 프론트엔드다. 빌드는 client → SSR → 라우트별 사전 렌더링(8개 라우트) 순서이며, 결과물은 Cloudflare Pages 에 배포한다. 백엔드 API 계약은 `src/api/client.js` 주석을 본다.
 
 ## 환경
 
@@ -38,15 +38,18 @@ node scripts/check-dist.mjs production   # 또는 staging — 산출물 광고·
 
 ## 제휴 업체(광고)와 관리 화면
 
-백엔드 계약·운영 순서는 백엔드 ADR-015(제휴 업체 슬롯별 노출과 Access 기반 운영 도구)를 따른다.
+백엔드 계약·운영 순서는 백엔드 ADR-015(v1 슬롯·관리 도구)와 v1.1 계획(지면 확장·비식별 합계·월별 리포트·UTM, 백엔드 #28)을 따른다.
 
-- **공개 노출**: `GET /api/v1/partners?slot=HOME_MAIN|BUDGET_PARTNERS` (`src/api/partners.js`). 슬롯 on/off 는 서버 응답 `slotEnabled` 가 유일한 출처이며 FE 빌드 플래그로 켜지 않는다. 사전 렌더링·첫 렌더는 제휴 없음으로 시작하고, 하이드레이션 뒤 읽는다. 서버 `refreshAt`(최대 50초)·탭 복귀 때 다시 받고, 실패하거나 60초 넘게 못 받으면 비운다(`src/lib/partnerFeed.js`).
-- **예산 계산**: 스드메 가격 범위 다음·스냅 촬영 바로 위 「제휴 업체」(스냅을 꺼도 보임). 0건·실패·슬롯 off 면 섹션을 그리지 않는다.
+- **공개 노출**: `GET /api/v1/partners?slot=HOME_MAIN|BUDGET_PARTNERS|GUIDE_SIDEBAR|CHECKLIST_SIDEBAR` (`src/api/partners.js`). 슬롯 on/off 는 서버 응답 `slotEnabled` 가 유일한 출처다. 사전 렌더링·첫 렌더는 제휴 없음으로 시작하고, 하이드레이션 뒤 읽는다. 서버 `refreshAt`(최대 50초)·탭 복귀 때 다시 받고, 실패하거나 60초 넘게 못 받으면 비운다(`src/lib/partnerFeed.js`).
+- **업종 순환**: 피드는 살아 있는 후보 전부와 item 별 `rotationGroup`·`rotationPick` 을 준다. 화면에는 그룹당 1개만 보이며, 페이지뷰(공개 route 진입) 첫 pick 을 그룹별로 고정하고 고정한 배치가 피드에서 빠질 때만 바꾼다(`pickRotation`, 페이지뷰 ledger 는 `src/context/PartnerMeasureProvider.jsx`).
+- **광고 표시**: 모든 지면 카드 오른쪽 아래 작은 「광고 ⓘ」(`src/components/AdDisclosure.jsx`). ⓘ 버튼을 마우스·포커스·탭하면 「웨딩챌린저가 선정해 노출하는 제휴 업체입니다.」 말풍선. 문구는 서버 `disclosure`·`disclosureNotice`, 없으면 `src/lib/partnerDisclosure.js` 상수. 카드는 업체 홈페이지 새 창 링크(`rel="sponsored noopener noreferrer"`)이며 예산에 담지 않고 가격·광고 단가를 보이지 않는다. 이미지는 배포된 `public/images/partners/` 자산만 쓴다.
+- **예산 계산**: 견적 바구니와 같은 sticky 래퍼(`role="region"`, 큰 화면 `max-height` + 내부 스크롤) 안, 바구니 바로 아래의 세로 목록. 0건·실패·슬롯 off 면 그리지 않는다. 예산 AdSense 는 aside 밖 본문 열 하단이다.
 - **홈**: 제휴가 있으면 웨딩홀 줄을 「제휴 업체」 마키로 바꾸고, 없으면 지금 웨딩홀 줄(필터·12곳·더 보기) 그대로다.
-- 카드는 항상 「광고 · 제휴 업체」를 표시하고, 업체 홈페이지 새 창 링크(`rel="sponsored noopener noreferrer"`)다. 예산에 담지 않으며 가격·광고 단가를 보이지 않는다. 이미지는 배포된 `public/images/partners/` 자산만 쓴다(새 이미지는 FE 배포 필요).
-- **관리 화면**: `/admin/partners`. 빌드는 사전 렌더링하지 않는 별도 셸 `admin.html`(빈 root·noindex·광고 없음)을 만들고, `public/_redirects` 의 `/admin/* /admin 200` 한 줄과 `public/_headers` 의 `/admin`·`/admin/*`·`/admin.html` no-store·noindex 로 서빙한다(staging 은 여기에 `/*` noindex 를 덧붙인다). `npm run dev` 도 `/admin/…` 을 `admin.html` 로 보낸다. 공개 Header·Footer·광고·동의 배너는 관리 레이아웃에 없다.
-- 관리 API(`/api/v1/admin/**`, `src/api/adminPartners.js`)는 Cloudflare Access 쿠키로만 부른다(`credentials: include`). 로그인이 필요하면 화면의 「관리 API 로그인」 링크로 API 주소 `/api/v1/admin/session` 에 최상위 이동한다. 프론트 가드는 보안 경계가 아니다.
-- **검증 예외**: 로컬에 관리 인증 우회를 만들지 않으므로 관리 화면은 Vitest(mock API·reducer)와 admin 셸 빌드 검사로 PR 을 검증하고, 실제 브라우저 관리 수락은 develop 배포 뒤 보호된 dev 관리 주소에서 조율자가 한다. 마키의 hover·focus·reduced-motion·Tab·inert DOM 동작도 조율자 브라우저 수락 대상이다.
+- **가이드·체크리스트 사이드**: 레이아웃 빌드 플래그 `VITE_PARTNER_SIDE_LAYOUT`(보안·노출 제어 아님)이 `true` 일 때만 PC(1024px 이상) 우측 고정 열 1구좌, 모바일은 같은 DOM 이 첫 본문 묶음 뒤에 온다. `false`(초기값)면 지금 단일 열 그대로다. production·staging 값은 추적되는 `.env.production`·`.env.staging` 에서만 읽고 `'true'`/`'false'` 만 허용하며, 프로세스 env·`*.local` 로 덮어쓰면 빌드가 실패한다. 바꿀 때는 그 파일을 develop→master PR 로 바꾼다. `check-dist` 가 prerender `/guide`·`/checklist` 의 `data-partner-side-layout`·`data-partner-side-column` 표식을 값과 대조한다. 로컬에서 켜 보려면 `VITE_PARTNER_SIDE_LAYOUT=true npm run dev`(development 만 허용).
+- **노출·클릭 측정**(`src/lib/partnerMetrics.js`, `src/hooks/usePartnerMetrics.js`): 카드 면적 50% 이상이 가림을 뺀 화면 안에 연속 1초 + 탭 visible + 온보딩 모달 닫힘이면 노출 1회, 링크 좌클릭·Enter·중간 버튼이면 클릭 1회(페이지뷰·배치마다 최대 1회). 동의 배너는 실측 높이만큼 IntersectionObserver `rootMargin` 아래쪽만 뺀다. 전송은 `POST /api/v1/partners/metrics`(text/plain JSON 한 이벤트, `fetch` keepalive·credentials omit·no-referrer, 재시도 없음). item 별 `measurementToken` 이 없으면(집계 off) 측정하지 않고, 남은 시간 11초 이하·탭 복귀 뒤에는 재조회 후 보낸다.
+- **관리 화면**: `/admin/partners`(제휴사·노출 항목)와 `/admin/partner-reports`(월별 리포트: 지면·기기군별 노출·클릭·가중 CTR·제한으로 누락 N·이상 의심·운영 메모, CSV `partner-report-<YYYY-MM>[-<partnerId>].csv`, 배치별 UTM·월 메모 편집). 빌드는 사전 렌더링하지 않는 별도 셸 `admin.html`(빈 root·noindex·광고 없음)을 만들고, `public/_redirects` 의 `/admin/* /admin 200` 한 줄과 `public/_headers` 의 `/admin`·`/admin/*`·`/admin.html` no-store·noindex 로 서빙한다(staging 은 여기에 `/*` noindex 를 덧붙인다). `npm run dev` 도 `/admin/…` 을 `admin.html` 로 보낸다. 공개 Header·Footer·광고·동의 배너·제휴 측정은 관리 레이아웃에 없다.
+- 관리 API(`/api/v1/admin/**`, `src/api/adminPartners.js`·`src/api/adminPartnerReports.js`)는 Cloudflare Access 쿠키로만 부른다(`credentials: include`). 로그인이 필요하면 화면의 「관리 API 로그인」 링크로 API 주소 `/api/v1/admin/session` 에 최상위 이동한다. 프론트 가드는 보안 경계가 아니다.
+- **검증 예외**: 로컬에 관리 인증 우회를 만들지 않으므로 관리 화면은 Vitest(mock API·reducer)와 admin 셸 빌드 검사로 PR 을 검증하고, 실제 브라우저 관리 수락은 develop 배포 뒤 보호된 dev 관리 주소에서 조율자가 한다. 마키의 hover·focus·reduced-motion·Tab·inert DOM 동작과 실제 측정 전송(api-dev)도 조율자 브라우저 수락 대상이다.
 
 ## 브랜치와 배포
 

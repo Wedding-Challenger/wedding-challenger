@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { partnerSideLayoutEnabled } from '../config/environment';
+import PartnerSidebar from './PartnerSidebar';
 
 const GROUPS = [
   {
@@ -89,6 +91,59 @@ const GROUPS = [
   },
 ];
 
+function GroupSection({ group, checked, toggle }) {
+  const groupDone = group.items.filter((it) => checked[it.id]).length;
+  return (
+    <section className={`border rounded-2xl p-6 ${group.color} ${group.borderColor}`}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-charcoal">{group.period}</h2>
+        <span className="text-xs text-charcoal/40">
+          {groupDone}/{group.items.length}
+        </span>
+      </div>
+      <ul className="space-y-3">
+        {group.items.map((item) => (
+          <li key={item.id}>
+            <button
+              onClick={() => toggle(item.id)}
+              className="flex items-center gap-3 w-full text-left"
+            >
+              <span
+                className={`w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-all ${
+                  checked[item.id]
+                    ? 'bg-soft-gold border-soft-gold'
+                    : 'border-charcoal/20 bg-white'
+                }`}
+              >
+                {checked[item.id] && (
+                  <svg viewBox="0 0 12 10" className="w-3 h-3 fill-white">
+                    <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </span>
+              <span
+                className={`text-sm transition-all ${
+                  checked[item.id] ? 'line-through text-charcoal/30' : 'text-charcoal'
+                }`}
+              >
+                {item.text}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const note = (
+  <p className="mt-8 text-xs text-charcoal/30 text-center">
+    체크 상태는 이 브라우저에만 저장되며 새로고침 시 초기화됩니다.
+  </p>
+);
+
+// 제휴 사이드 열은 레이아웃 플래그(VITE_PARTNER_SIDE_LAYOUT, 계획서 C10·D3)로만 켠다. off 면 지금 단일 열 그대로.
+// on 이면 PC(lg) 우측 고정 열, 모바일은 같은 DOM 이 첫 본문 묶음(진행률 + 첫 시기) 뒤에 온다.
 export default function Checklist() {
   const [checked, setChecked] = useState({});
 
@@ -98,79 +153,61 @@ export default function Checklist() {
   const doneCount = Object.values(checked).filter(Boolean).length;
   const percent = Math.round((doneCount / totalItems) * 100);
 
-  return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-charcoal mb-3">결혼 준비 체크리스트</h1>
-        <p className="text-charcoal/60 mb-4">
-          시기별로 확인해야 할 항목을 클릭하여 완료 표시하세요.
-        </p>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-3 bg-warm-beige/30 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-soft-gold rounded-full transition-all duration-500"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <span className="text-sm font-semibold text-soft-gold shrink-0">
-            {doneCount}/{totalItems} ({percent}%)
-          </span>
-        </div>
-      </header>
-
-      <div className="space-y-6">
-        {GROUPS.map((group) => {
-          const groupDone = group.items.filter((it) => checked[it.id]).length;
-          return (
-            <section
-              key={group.period}
-              className={`border rounded-2xl p-6 ${group.color} ${group.borderColor}`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-charcoal">{group.period}</h2>
-                <span className="text-xs text-charcoal/40">
-                  {groupDone}/{group.items.length}
-                </span>
-              </div>
-              <ul className="space-y-3">
-                {group.items.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => toggle(item.id)}
-                      className="flex items-center gap-3 w-full text-left"
-                    >
-                      <span
-                        className={`w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-all ${
-                          checked[item.id]
-                            ? 'bg-soft-gold border-soft-gold'
-                            : 'border-charcoal/20 bg-white'
-                        }`}
-                      >
-                        {checked[item.id] && (
-                          <svg viewBox="0 0 12 10" className="w-3 h-3 fill-white">
-                            <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                      </span>
-                      <span
-                        className={`text-sm transition-all ${
-                          checked[item.id] ? 'line-through text-charcoal/30' : 'text-charcoal'
-                        }`}
-                      >
-                        {item.text}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
-      </div>
-
-      <p className="mt-8 text-xs text-charcoal/30 text-center">
-        체크 상태는 이 브라우저에만 저장되며 새로고침 시 초기화됩니다.
+  const intro = (
+    <header className="mb-8">
+      <h1 className="text-3xl font-bold text-charcoal mb-3">결혼 준비 체크리스트</h1>
+      <p className="text-charcoal/60 mb-4">
+        시기별로 확인해야 할 항목을 클릭하여 완료 표시하세요.
       </p>
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-3 bg-warm-beige/30 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-soft-gold rounded-full transition-all duration-500"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <span className="text-sm font-semibold text-soft-gold shrink-0">
+          {doneCount}/{totalItems} ({percent}%)
+        </span>
+      </div>
+    </header>
+  );
+
+  if (!partnerSideLayoutEnabled) {
+    return (
+      <div data-partner-side-layout="false" className="max-w-3xl mx-auto px-6 py-12">
+        {intro}
+        <div className="space-y-6">
+          {GROUPS.map((group) => <GroupSection key={group.period} group={group} checked={checked} toggle={toggle} />)}
+        </div>
+        {note}
+      </div>
+    );
+  }
+
+  const [first, ...rest] = GROUPS;
+  return (
+    <div
+      data-partner-side-layout="true"
+      className="max-w-3xl lg:max-w-6xl mx-auto px-6 py-12 lg:grid lg:grid-cols-[minmax(0,1fr)_18.75rem] lg:gap-x-10"
+    >
+      <div className="lg:col-start-1">
+        {intro}
+        <GroupSection group={first} checked={checked} toggle={toggle} />
+      </div>
+      <aside
+        data-partner-side-column=""
+        aria-label="제휴 업체"
+        className="mt-6 empty:hidden lg:mt-0 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-start"
+      >
+        <PartnerSidebar slot="CHECKLIST_SIDEBAR" />
+      </aside>
+      <div className="lg:col-start-1 mt-6">
+        <div className="space-y-6">
+          {rest.map((group) => <GroupSection key={group.period} group={group} checked={checked} toggle={toggle} />)}
+        </div>
+        {note}
+      </div>
     </div>
   );
 }

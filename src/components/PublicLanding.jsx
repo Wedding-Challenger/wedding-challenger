@@ -6,6 +6,7 @@ import AdSlot from './AdSlot';
 import HorizontalScroll from './HorizontalScroll';
 import PartnerMarquee from './PartnerMarquee';
 import usePartnerFeed from '../hooks/usePartnerFeed';
+import usePartnerMetrics from '../hooks/usePartnerMetrics';
 import { FALLBACK_HALLS, fallbackVendors } from '../data/fallback';
 import { AD_SLOTS } from '../config/ads';
 import HallFilter from './HallFilter';
@@ -80,7 +81,8 @@ export default function PublicLanding({ adsEnabled }) {
   }));
 
   // 홈 메인 제휴(HOME_MAIN). 슬롯 off·0건·실패·만료면 빈 목록 → 아래 일반 웨딩홀 줄을 그대로 보인다
-  const partners = usePartnerFeed('HOME_MAIN');
+  const { items: partners, prepareSend } = usePartnerFeed('HOME_MAIN');
+  const partnerMetrics = usePartnerMetrics({ slot: 'HOME_MAIN', items: partners, prepareSend });
 
   useEffect(() => {
     getHalls().then(setHalls).catch(console.error);
@@ -118,10 +120,11 @@ export default function PublicLanding({ adsEnabled }) {
       {/* Catalog */}
       <section className="max-w-7xl mx-auto px-6 py-12">
         {partners.length > 0 ? (
-          // 제휴 업체만 보이는 광고 줄(일반 업체·지역 필터를 섞지 않음). 일반 웨딩홀 탐색은 계산기에서 계속한다
+          // 제휴 업체만 보이는 광고 줄(일반 업체·지역 필터를 섞지 않음). 일반 웨딩홀 탐색은 계산기에서 계속한다.
+          // 광고 표시는 카드마다 「광고 ⓘ」(G4) — 섹션 안내 문장은 두지 않는다. 같은 업종은 순환으로 1개만(G2·H1)
           <div className="mb-10">
-            <RowTitle icon="🤝" title="제휴 업체" subtitle="광고료를 받고 노출하는 제휴 업체입니다" />
-            <PartnerMarquee items={partners} label="제휴 업체" />
+            <RowTitle icon="🤝" title="제휴 업체" />
+            <PartnerMarquee items={partners} label="제휴 업체" metrics={partnerMetrics} />
           </div>
         ) : (
           <CategoryRow

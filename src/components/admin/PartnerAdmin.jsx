@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../api/client';
 import {
-  adminLoginUrl, deletePartner, deletePlacement, getAdminAudit, getAdminMe, getAdminPartner, getAdminPartners, getAdminPlacements,
+  deletePartner, deletePlacement, getAdminAudit, getAdminMe, getAdminPartner, getAdminPartners, getAdminPlacements,
   listItems, savePartner, savePlacement, savePlacementOrder, searchCatalog,
 } from '../../api/adminPartners';
 import { stage } from '../../config/environment';
@@ -14,50 +14,12 @@ import {
   validatePlacement, visiblePlacements,
 } from '../../lib/partnerAdmin';
 import PartnerCard from '../PartnerCard';
+import { AuthNotice, Banner, Field, danger, input, primary, secondary } from './adminUi';
 
 // 제휴 업체 관리 (관리 셸 /admin/partners). 상태 전이·검증은 src/lib/partnerAdmin.js, API 는 src/api/adminPartners.js.
 // 실제 접근 통제는 Cloudflare Access + BE JWT 검증이다. 이 화면은 저장 중 잠금·409 재조회·재로그인 안내만 맡는다.
 
-const input = 'w-full rounded-lg border border-warm-beige/60 bg-white px-3 py-2 text-sm text-charcoal focus:outline-none focus-visible:ring-2 focus-visible:ring-soft-gold/60';
-const button = 'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
-const primary = `${button} bg-soft-gold text-white hover:bg-soft-gold/90`;
-const secondary = `${button} border border-warm-beige/60 bg-white text-charcoal/70 hover:text-charcoal`;
-const danger = `${button} border border-deep-rose/30 bg-white text-deep-rose hover:bg-deep-rose/5`;
-
 const label = (list, value) => list.find((o) => o.value === value)?.label ?? value ?? '-';
-
-function Field({ id, title, hint, error, children }) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="block text-xs font-semibold text-charcoal/70">{title}</label>
-      {children}
-      {hint && <p className="text-[11px] text-charcoal/40">{hint}</p>}
-      {error && <p className="text-[11px] text-deep-rose" role="alert">{error}</p>}
-    </div>
-  );
-}
-
-function Banner({ tone = 'info', children }) {
-  const tones = {
-    info: 'border-soft-gold/30 bg-soft-gold/10 text-charcoal',
-    warn: 'border-deep-rose/30 bg-deep-rose/5 text-deep-rose',
-  };
-  return <div role={tone === 'warn' ? 'alert' : 'status'} className={`rounded-xl border px-4 py-3 text-sm ${tones[tone]}`}>{children}</div>;
-}
-
-function AuthNotice({ auth }) {
-  if (auth === 'login') {
-    return (
-      <Banner tone="warn">
-        관리 API 로그인이 필요합니다(처음 접속했거나 세션이 끝났습니다).{' '}
-        <a href={adminLoginUrl()} className="underline font-semibold">관리 API 로그인</a> 뒤 이 화면으로 돌아옵니다.
-      </Banner>
-    );
-  }
-  if (auth === 'forbidden') return <Banner tone="warn">이 계정은 관리 권한이 없거나 허용되지 않은 주소에서 접속했습니다.</Banner>;
-  if (auth === 'disabled') return <Banner tone="warn">관리 기능이 꺼져 있습니다(서버 설정). 운영 담당자에게 확인하세요.</Banner>;
-  return null;
-}
 
 function CatalogLink({ form, onChange, disabled }) {
   // 결과는 검색 당시 종류와 함께 둔다. 종류를 바꾸면 결과·진행 중 검색을 버린다(src/lib/partnerAdmin.js catalogReducer)
@@ -435,6 +397,7 @@ export default function PartnerAdmin() {
         </div>
         <div className="flex gap-2">
           <button type="button" className={secondary} disabled={state.loading} onClick={load}>새로고침</button>
+          <Link to="/admin/partner-reports" className={secondary}>월별 리포트</Link>
           <Link to="/" reloadDocument className={secondary}>공개 사이트</Link>
         </div>
       </header>

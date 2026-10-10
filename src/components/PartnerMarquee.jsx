@@ -10,7 +10,11 @@ const GAP = 16; // gap-4
 // 홈 제휴 업체 줄의 자동 가로 이동. HorizontalScroll(scrollLeft·스크롤바)과 별개로 transform 트랙을 민다.
 // 원본 카드 한 벌 뒤에 이어 붙이는 복제 한 벌은 aria-hidden + inert 라 Tab·클릭·접근성 트리에서 빠진다.
 // 상태 전이는 src/lib/partnerMarquee.js. 첫 렌더(측정 전)는 복제·버튼 없는 정지 목록이다.
-export default function PartnerMarquee({ items, label = '제휴 업체' }) {
+// 노출 측정(metrics = usePartnerMetrics 결과): 원본·복제 DOM 을 같은 카드로 묶어 보이는 쪽 비율의 최댓값으로 판정하고,
+// 클릭은 원본 링크에만 붙인다(복제는 inert 라 눌리지 않는다).
+const NO_METRICS = { cardRef: () => undefined, linkProps: () => ({}) };
+
+export default function PartnerMarquee({ items, label = '제휴 업체', metrics = NO_METRICS }) {
   const viewportRef = useRef(null);
   const copyRef = useRef(null);
   const drag = useRef(null);
@@ -114,7 +118,7 @@ export default function PartnerMarquee({ items, label = '제휴 업체' }) {
   const cards = (inert) =>
     items.map((item) => (
       <div key={item.placementId} data-marquee-item={inert ? undefined : ''} className="w-[260px] max-w-[calc(100vw-4rem)] shrink-0">
-        <PartnerCard item={item} />
+        <PartnerCard item={item} measureRef={metrics.cardRef(item, inert ? 1 : 0)} linkProps={inert ? undefined : metrics.linkProps(item)} />
       </div>
     ));
 

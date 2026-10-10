@@ -19,6 +19,8 @@ const ADMIN_HTML = (extraHead = '') => `<!doctype html>
 <html lang="ko"><head><meta charset="UTF-8" /><meta name="robots" content="noindex, nofollow" />${extraHead}<title>제휴 업체 관리 - 웨딩챌린저</title></head>
 <body><div id="root"></div><script type="module" src="/assets/admin.js"></script></body></html>`;
 
+const SIDE_ROUTES = ['/guide', '/checklist'];
+
 let dirs = [];
 afterEach(() => {
   dirs.forEach((d) => rmSync(d, { recursive: true, force: true }));
@@ -39,8 +41,10 @@ function makeDist(mode) {
     const url = site + p;
     const robots = production ? 'index, follow' : 'noindex, nofollow';
     const ads = production ? `<meta name="google-adsense-account" content="${ADSENSE_CLIENT}" />` : '';
+    // /guide·/checklist 는 추적 mode 파일의 레이아웃 플래그(초기 false) 표식을 갖는다
+    const side = SIDE_ROUTES.includes(p) ? '<div data-partner-side-layout="false"><section>본문</section></div>' : '';
     write(p === '/' ? 'index.html' : `${p.slice(1)}.html`,
-      `<html><head><meta name="robots" content="${robots}" />${ads}<link rel="canonical" href="${url}" /><meta property="og:url" content="${url}" /></head><body><div id="root"><main>본문</main></div></body></html>`);
+      `<html><head><meta name="robots" content="${robots}" />${ads}<link rel="canonical" href="${url}" /><meta property="og:url" content="${url}" /></head><body><div id="root"><main>본문${side}</main></div></body></html>`);
   }
   write('admin.html', ADMIN_HTML());
   write('_redirects', `${ADMIN_REDIRECT}\n`);
@@ -91,5 +95,45 @@ describe('check-dist admin 셸', () => {
     const d = makeDist('staging');
     d.write('_headers', ADMIN_HEADERS);
     expect(checkDist('staging', d.dir).join('\n')).toMatch(/\/\*/);
+  });
+});
+
+// 레이아웃 플래그 dist 계약(계획서 D3): mode 별 추적 파일의 값과 prerender /guide·/checklist 표식이 일치해야 한다.
+// data-partner-side-layout 는 정확히 하나, data-partner-side-column 은 true 일 때만 정확히 하나.
+describe('check-dist 제휴 사이드 레이아웃 표식', () => {
+  const page = (layout, column) => `<html><head><meta name="robots" content="noindex, nofollow" /></head><body><div id="root"><main>${layout}${column}</main></div></body></html>`;
+  const setSide = (d, mode, html) => {
+    const site = ORIGINS[mode].site[0];
+    for (const p of SIDE_ROUTES) {
+      const url = site + p;
+      d.write(`${p.slice(1)}.html`, html.replace('<head>', `<head><link rel="canonical" href="${url}" /><meta property="og:url" content="${url}" />`));
+    }
+  };
+
+  it.each(['production', 'staging'])('trackedFalseMatchesPrerender — %s 추적 파일 false 와 표식 false 는 통과', (mode) => {
+    const { dir } = makeDist(mode);
+    expect(checkDist(mode, dir)).toEqual([]);
+  });
+
+  it('trueRequiresSingleSideColumn — true 면 사이드 열 표식 정확히 하나', () => {
+    const d = makeDist('staging');
+    setSide(d, 'staging', page('<div data-partner-side-layout="true">', '<aside data-partner-side-column></aside></div>'));
+    expect(checkDist('staging', d.dir, { sideLayout: true })).toEqual([]);
+    // 같은 산출물을 추적값 false 로 검사하면 불일치
+    expect(checkDist('staging', d.dir).join('\n')).toMatch(/guide\.html.*data-partner-side-layout/);
+  });
+
+  it.each([
+    ['표식 누락', page('<div>', '</div>'), false, /guide\.html.*data-partner-side-layout/],
+    ['표식 중복', page('<div data-partner-side-layout="false"><div data-partner-side-layout="false">', '</div></div>'), false, /checklist\.html.*data-partner-side-layout/],
+    ['역값', page('<div data-partner-side-layout="true">', '<aside data-partner-side-column></aside></div>'), false, /guide\.html.*data-partner-side-layout/],
+    ['false 인데 빈 사이드 열', page('<div data-partner-side-layout="false">', '<aside data-partner-side-column></aside></div>'), false, /guide\.html.*data-partner-side-column/],
+    ['true 인데 사이드 열 없음', page('<div data-partner-side-layout="true">', '</div>'), true, /guide\.html.*data-partner-side-column/],
+    ['true 인데 사이드 열 둘', page('<div data-partner-side-layout="true">', '<aside data-partner-side-column></aside><aside data-partner-side-column></aside></div>'), true, /guide\.html.*data-partner-side-column/],
+  ])('sideLayoutViolationsFail — %s', (_, html, sideLayout, message) => {
+    const d = makeDist('production');
+    setSide(d, 'production', html.replace('noindex, nofollow', 'index, follow').replace('<head>', `<head><meta name="google-adsense-account" content="${ADSENSE_CLIENT}" />`));
+    const problems = checkDist('production', d.dir, { sideLayout });
+    expect(problems.join('\n')).toMatch(message);
   });
 });

@@ -4,7 +4,9 @@ import { StaticRouter } from 'react-router-dom';
 
 // 홈 슬롯 on/off·0건·실패·만료는 서버 응답 + partnerFeed 판정(빈 목록)으로 들어온다. 여기서는 결과만 주입한다.
 const feed = vi.hoisted(() => ({ items: {} }));
-vi.mock('../../hooks/usePartnerFeed', () => ({ default: (slot) => feed.items[slot] ?? [] }));
+vi.mock('../../hooks/usePartnerFeed', () => ({
+  default: (slot) => ({ items: feed.items[slot] ?? [], prepareSend: async () => null }),
+}));
 
 const { default: PublicLanding } = await import('../PublicLanding');
 
@@ -34,10 +36,11 @@ describe('홈 제휴 업체 줄', () => {
     feed.items.HOME_MAIN = [item(1), item(2), item(3)];
     const html = render();
     expect(html).toMatch(/<h2[^>]*>제휴 업체<\/h2>/);
-    expect(html).toContain('광고료를 받고 노출하는 제휴 업체입니다');
+    // 승인 G4: 섹션 안내 문장·큰 배지 대신 카드마다 「광고 ⓘ」 하나(접근성 이름에도 「광고」가 들어간다)
+    expect(html).not.toContain('광고료를 받고 노출하는 제휴 업체입니다');
     expect(html).not.toContain('예식장 비교');
-    // 카드마다 보이는 배지 하나(접근성 이름에도 같은 표기가 들어간다)
-    expect(html.match(/>광고 · 제휴 업체</g)).toHaveLength(3);
+    expect(html.match(/aria-label="광고 안내 보기"/g)).toHaveLength(3);
+    expect(html.match(/ — 광고, 업체 홈페이지 보기/g)).toHaveLength(3);
     // 다른 카테고리 줄은 그대로
     expect(html).toContain('스튜디오');
   });

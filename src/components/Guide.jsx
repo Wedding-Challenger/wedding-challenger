@@ -1,3 +1,6 @@
+import { partnerSideLayoutEnabled } from '../config/environment';
+import PartnerSidebar from './PartnerSidebar';
+
 const phases = [
   {
     period: '12개월 전',
@@ -74,44 +77,85 @@ const phases = [
   },
 ];
 
-export default function Guide() {
+function PhaseSection({ phase }) {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
-      <header className="mb-10">
-        <h1 className="text-3xl font-bold text-charcoal mb-3">결혼 준비 타임라인 가이드</h1>
-        <p className="text-charcoal/60">
-          결혼식 12개월 전부터 당일까지, 놓치지 말아야 할 체크포인트를 시간 순서대로 정리했습니다.
-          각 단계를 참고해 나만의 준비 일정을 만들어 보세요.
-        </p>
-      </header>
-
-      <div className="space-y-8">
-        {phases.map((phase) => (
-          <section key={phase.period} className={`border rounded-2xl p-6 ${phase.color}`}>
-            <h2 className={`text-xl font-bold mb-4 ${phase.titleColor}`}>{phase.period}</h2>
-            <ul className="space-y-4">
-              {phase.items.map((item) => (
-                <li key={item.title} className="flex gap-3">
-                  <span className="mt-1 w-2 h-2 rounded-full bg-charcoal/30 shrink-0" />
-                  <div>
-                    <p className="font-semibold text-charcoal">{item.title}</p>
-                    <p className="text-sm text-charcoal/60 mt-0.5">{item.desc}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+    <section className={`border rounded-2xl p-6 ${phase.color}`}>
+      <h2 className={`text-xl font-bold mb-4 ${phase.titleColor}`}>{phase.period}</h2>
+      <ul className="space-y-4">
+        {phase.items.map((item) => (
+          <li key={item.title} className="flex gap-3">
+            <span className="mt-1 w-2 h-2 rounded-full bg-charcoal/30 shrink-0" />
+            <div>
+              <p className="font-semibold text-charcoal">{item.title}</p>
+              <p className="text-sm text-charcoal/60 mt-0.5">{item.desc}</p>
+            </div>
+          </li>
         ))}
-      </div>
+      </ul>
+    </section>
+  );
+}
 
-      <footer className="mt-12 p-6 bg-warm-beige/20 rounded-2xl text-sm text-charcoal/50">
-        <p>
-          위 타임라인은 일반적인 가이드입니다. 예식장·스드메 업체 사정, 예산, 지역에 따라
-          일정이 달라질 수 있으니 담당자와 직접 확인하세요.
-          웨딩챌린저의{' '}
-          <a href="/checklist" className="text-deep-rose underline">체크리스트</a>도 함께 활용해 보세요.
-        </p>
-      </footer>
+const intro = (
+  <header className="mb-10">
+    <h1 className="text-3xl font-bold text-charcoal mb-3">결혼 준비 타임라인 가이드</h1>
+    <p className="text-charcoal/60">
+      결혼식 12개월 전부터 당일까지, 놓치지 말아야 할 체크포인트를 시간 순서대로 정리했습니다.
+      각 단계를 참고해 나만의 준비 일정을 만들어 보세요.
+    </p>
+  </header>
+);
+
+const outro = (
+  <footer className="mt-12 p-6 bg-warm-beige/20 rounded-2xl text-sm text-charcoal/50">
+    <p>
+      위 타임라인은 일반적인 가이드입니다. 예식장·스드메 업체 사정, 예산, 지역에 따라
+      일정이 달라질 수 있으니 담당자와 직접 확인하세요.
+      웨딩챌린저의{' '}
+      <a href="/checklist" className="text-deep-rose underline">체크리스트</a>도 함께 활용해 보세요.
+    </p>
+  </footer>
+);
+
+// 제휴 사이드 열은 레이아웃 플래그(VITE_PARTNER_SIDE_LAYOUT, 계획서 C10·D3)로만 켠다. off 면 지금 단일 열 그대로.
+// on 이면 PC(lg) 우측 고정 열(광고 유무와 무관하게 본문 폭·위치 고정), 모바일은 같은 DOM 이 첫 본문 묶음 뒤에 온다.
+// data-partner-side-layout·data-partner-side-column 표식은 scripts/check-dist.mjs 가 mode 별 플래그와 대조한다.
+export default function Guide() {
+  if (!partnerSideLayoutEnabled) {
+    return (
+      <div data-partner-side-layout="false" className="max-w-3xl mx-auto px-6 py-12">
+        {intro}
+        <div className="space-y-8">
+          {phases.map((phase) => <PhaseSection key={phase.period} phase={phase} />)}
+        </div>
+        {outro}
+      </div>
+    );
+  }
+
+  const [first, ...rest] = phases;
+  return (
+    <div
+      data-partner-side-layout="true"
+      className="max-w-3xl lg:max-w-6xl mx-auto px-6 py-12 lg:grid lg:grid-cols-[minmax(0,1fr)_18.75rem] lg:gap-x-10"
+    >
+      <div className="lg:col-start-1">
+        {intro}
+        <PhaseSection phase={first} />
+      </div>
+      <aside
+        data-partner-side-column=""
+        aria-label="제휴 업체"
+        className="mt-8 empty:hidden lg:mt-0 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-start"
+      >
+        <PartnerSidebar slot="GUIDE_SIDEBAR" />
+      </aside>
+      <div className="lg:col-start-1 mt-8">
+        <div className="space-y-8">
+          {rest.map((phase) => <PhaseSection key={phase.period} phase={phase} />)}
+        </div>
+        {outro}
+      </div>
     </div>
   );
 }
