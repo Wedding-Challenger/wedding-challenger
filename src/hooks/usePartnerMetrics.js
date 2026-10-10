@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sendPartnerMetric } from '../api/partnerMetrics';
 import { usePartnerMeasure } from '../context/partnerMeasureShared';
-import { bannerRootMargin } from '../lib/partnerOverlay';
+import { overlayRootMargin } from '../lib/partnerOverlay';
 import { countableActivation, createImpressionTracker } from '../lib/partnerMetrics';
 
 // 한 슬롯 카드들의 가시 노출·최초 클릭 측정 (판정은 src/lib/partnerMetrics.js, 가림 신호는 partnerMeasureShared context).
 // - IntersectionObserver(clipping 포함 비율) + performance.now() 타이머. 동의 배너 실측 높이만큼 rootMargin 아래쪽을 줄이고,
-//   배너 높이·뷰포트 높이가 바뀌면 observer 를 새로 만들어 연속 시간을 처음부터 다시 잰다. 온보딩 모달·탭 hidden 은 전체 정지.
+//   상단 sticky Header 실측 높이만큼 위쪽도 줄인다. Header·배너 높이·뷰포트 높이가 바뀌면 observer 를 새로 만들어 연속 시간을
+//   처음부터 다시 잰다. 온보딩 모달·탭 hidden 은 전체 정지.
 // - 원본·inert 복제 DOM 은 cardRef(item, copy) 로 같은 카드(placementId)에 묶는다. 클릭은 원본 링크에만 붙인다.
 // - 전송 전 prepareSend 로 그 item 의 토큰을 받는다(만료 임박·hidden 복귀면 재조회 뒤). 실패하면 측정만 포기한다.
 // - 링크 기본 이동은 막지 않고 집계 결과를 기다리지 않는다. 토큰이 없는 item(집계 off)은 관찰·전송하지 않는다.
@@ -70,6 +71,7 @@ function createMeasurer(slot) {
 
 export default function usePartnerMetrics({ slot, items, prepareSend }) {
   const { ledger, overlay } = usePartnerMeasure();
+  const { bannerHeight, headerHeight } = overlay;
   const [viewportHeight, setViewportHeight] = useState(0);
   const measurer = useMemo(() => createMeasurer(slot), [slot]);
   const elements = useRef(new Map()); // element → placementId
@@ -104,7 +106,7 @@ export default function usePartnerMetrics({ slot, items, prepareSend }) {
     measurer.schedule();
   }, [overlay.suspended, measurer]);
 
-  // 배너 높이·뷰포트 높이가 바뀌면 observer 를 새로 만든다
+  // Header·배너 높이·뷰포트 높이가 바뀌면 observer 를 새로 만든다
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined' || !viewportHeight) return undefined;
     const { tracker } = measurer;
@@ -117,7 +119,7 @@ export default function usePartnerMetrics({ slot, items, prepareSend }) {
         tracker.observe(placementId, entry.target, entry.isIntersecting ? entry.intersectionRatio : 0, now);
       }
       measurer.schedule();
-    }, { rootMargin: bannerRootMargin(overlay.bannerHeight, viewportHeight), threshold: [0, 0.25, 0.5, 0.75, 1] });
+    }, { rootMargin: overlayRootMargin({ bannerHeight, headerHeight }, viewportHeight), threshold: [0, 0.25, 0.5, 0.75, 1] });
     observer.current = io;
     elements.current.forEach((_, el) => io.observe(el));
     measurer.schedule();
@@ -125,7 +127,7 @@ export default function usePartnerMetrics({ slot, items, prepareSend }) {
       io.disconnect();
       if (observer.current === io) observer.current = null;
     };
-  }, [overlay.bannerHeight, viewportHeight, measurer]);
+  }, [bannerHeight, headerHeight, viewportHeight, measurer]);
 
   // 카드 DOM ref. copy 는 원본 0, inert 복제 1 (같은 placementId 로 합친다)
   const cardRef = useCallback((item, copy = 0) => {

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { bannerRootMargin, createBannerObserver, initialOverlay, overlayReducer, overlaySummary } from '../partnerOverlay';
+import {
+  bannerRootMargin, createBannerObserver, initialOverlay, overlayReducer, overlayRootMargin, overlaySummary,
+} from '../partnerOverlay';
 
 // 가림 신호(계획서 §3.2 C8·D1): Onboarding 은 마운트/언마운트로 전체 화면 모달을 등록·해제하고,
 // ConsentBanner 는 open=true 로 렌더된 배너 div ref 가 붙을 때 ResizeObserver 높이를 등록, 떨어지면 0 으로 해제한다.
@@ -25,17 +27,17 @@ const node = (height) => ({ getBoundingClientRect: () => ({ height }) });
 describe('가림 신호 context 상태', () => {
   it('modalOwnersSuspendUntilAllUnregister — 소유자별 키로 등록·해제(StrictMode cleanup 뒤 잔여 0)', () => {
     let s = overlayReducer(initialOverlay, { type: 'MODAL_OPEN', owner: 'onboarding:1' });
-    expect(overlaySummary(s)).toEqual({ suspended: true, bannerHeight: 0 });
+    expect(overlaySummary(s)).toEqual({ suspended: true, bannerHeight: 0, headerHeight: 0 });
     // StrictMode: cleanup → 다시 effect
     s = overlayReducer(s, { type: 'MODAL_CLOSE', owner: 'onboarding:1' });
     s = overlayReducer(s, { type: 'MODAL_OPEN', owner: 'onboarding:1' });
     s = overlayReducer(s, { type: 'MODAL_CLOSE', owner: 'onboarding:1' });
-    expect(overlaySummary(s)).toEqual({ suspended: false, bannerHeight: 0 });
+    expect(overlaySummary(s)).toEqual({ suspended: false, bannerHeight: 0, headerHeight: 0 });
   });
 
   it('bannerHeightZeroUnregisters — 배너 높이 등록·변경·0 해제', () => {
     let s = overlayReducer(initialOverlay, { type: 'BANNER_HEIGHT', owner: 'banner:1', height: 120 });
-    expect(overlaySummary(s)).toEqual({ suspended: false, bannerHeight: 120 });
+    expect(overlaySummary(s)).toEqual({ suspended: false, bannerHeight: 120, headerHeight: 0 });
     s = overlayReducer(s, { type: 'BANNER_HEIGHT', owner: 'banner:1', height: 180 });
     expect(overlaySummary(s).bannerHeight).toBe(180);
     s = overlayReducer(s, { type: 'BANNER_HEIGHT', owner: 'banner:1', height: 0 });
@@ -92,5 +94,22 @@ describe('ConsentBanner 높이 등록(D1)', () => {
     banner.attach(node(100));
     banner.attach(null);
     expect(onHeight.mock.calls).toEqual([[100], [0]]);
+  });
+});
+
+// 리뷰 1판 지적 2: 상단 sticky Header 가 가린 위쪽도 배너와 같은 방식으로 rootMargin 에서 뺀다
+describe('상단 Header 가림', () => {
+  it('headerHeightRegistered — Header 실측 높이 등록·0 해제(전체 정지 아님)', () => {
+    let s = overlayReducer(initialOverlay, { type: 'HEADER_HEIGHT', owner: 'header:1', height: 72.6 });
+    expect(overlaySummary(s)).toEqual({ suspended: false, bannerHeight: 0, headerHeight: 73 });
+    s = overlayReducer(s, { type: 'HEADER_HEIGHT', owner: 'header:1', height: 0 });
+    expect(overlaySummary(s).headerHeight).toBe(0);
+  });
+
+  it('rootMarginExcludesHeaderAndBanner — 위쪽은 Header, 아래쪽은 배너만큼 줄이고 합이 뷰포트를 넘지 않는다', () => {
+    expect(overlayRootMargin({ headerHeight: 0, bannerHeight: 0 }, 800)).toBe('0px 0px 0px 0px');
+    expect(overlayRootMargin({ headerHeight: 73, bannerHeight: 0 }, 800)).toBe('-73px 0px 0px 0px');
+    expect(overlayRootMargin({ headerHeight: 73, bannerHeight: 132.4 }, 800)).toBe('-73px 0px -133px 0px');
+    expect(overlayRootMargin({ headerHeight: 500, bannerHeight: 500 }, 800)).toBe('-500px 0px -300px 0px');
   });
 });

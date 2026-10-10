@@ -145,6 +145,28 @@ export function normalizeReport(result) {
   };
 }
 
+// 일별 행 표시: 실측이 있으면 상태 주석(게재 외 등)과 노출·클릭·제한 누락을 함께 보인다(기간 수정 뒤 대조용)
+export function dayText(day) {
+  if (day.statusLabel === '게재 외') return `${day.date} · 게재 외`;
+  const counters = [`노출 ${day.impressions.toLocaleString('ko-KR')}`, `클릭 ${day.clicks.toLocaleString('ko-KR')}`];
+  if (day.rateLimited) counters.push(`제한으로 누락 ${day.rateLimited.toLocaleString('ko-KR')}건`);
+  const note = day.statusLabel && day.statusLabel !== '0' ? [day.statusLabel] : [];
+  return [day.date, ...note, ...counters].join(' · ');
+}
+
+// 업체 필터 선택지 = 관리 목록 ∪ 리포트에 나온 업체(삭제 업체 포함) ∪ 직접 입력한 ID. value 는 문자열 id, id 순.
+export function mergePartnerOptions(adminPartners, reportPartners, directId) {
+  const labels = new Map();
+  for (const p of adminPartners ?? []) if (isPositiveId(p.id)) labels.set(String(p.id), `${p.name ?? '업체'} (#${p.id})`);
+  for (const r of reportPartners ?? []) {
+    const id = String(r.partnerId);
+    if (isPositiveId(id) && !labels.has(id)) labels.set(id, `${r.partnerLabel} (#${id})`);
+  }
+  const direct = String(directId ?? '').trim();
+  if (isPositiveId(direct) && !labels.has(direct)) labels.set(direct, `#${direct} (직접 입력)`);
+  return [...labels].sort((a, b) => Number(a[0]) - Number(b[0])).map(([value, label]) => ({ value, label }));
+}
+
 function isDate(v) {
   return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 }

@@ -134,3 +134,85 @@ describe('제휴 피드 컨트롤러 — 측정 토큰 준비', () => {
     expect(last()).toEqual([1]);
   });
 });
+
+// 리뷰 1판 지적 1: prepareSend 가 기다리는 재조회 A 를 탭 복귀·focus 재조회 B 가 추월해도, 최신 요청 세대가 실제로 반영될 때까지
+// 기다린 뒤 hidden·토큰 신선도를 다시 검사한다(낡은 토큰·hidden 전 토큰을 돌려주지 않는다).
+describe('제휴 피드 컨트롤러 — 추월된 재조회', () => {
+  it('waitsForNewerRefreshWhenOwnIsOvertaken — A(자신) 응답이 먼저 와도 버려지고 B 가 반영될 때까지 기다린다', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1)]));
+    await flush();
+    c.markHidden();
+    const p = c.prepareSend(1); // 재조회 A
+    await flush();
+    c.refresh(); // 탭 복귀 재조회 B 가 A 를 추월
+    expect(calls).toHaveLength(3);
+    let settled = false;
+    p.then(() => { settled = true; });
+    calls[1].resolve(result([item(1, { token: 'tok-A' })])); // A 는 낡은 세대라 버려진다
+    await flush();
+    expect(settled).toBe(false);
+    calls[2].resolve(result([item(1, { token: 'tok-B' })]));
+    await expect(p).resolves.toBe('tok-B');
+  });
+
+  it('reverseOrderCompletion — B 가 먼저, A 가 나중에 와도 B 의 토큰', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1)]));
+    await flush();
+    c.markHidden();
+    const p = c.prepareSend(1);
+    await flush();
+    c.refresh();
+    calls[2].resolve(result([item(1, { token: 'tok-B' })]));
+    await flush();
+    calls[1].resolve(result([item(1, { token: 'tok-A' })]));
+    await expect(p).resolves.toBe('tok-B');
+  });
+
+  it('newerRefreshStartedBeforeHiddenIsNotEnough — hidden 전에 시작된 재조회만 반영됐으면 다시 받는다', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1)]));
+    await flush();
+    c.refresh(); // hidden 전에 시작
+    c.markHidden();
+    const p = c.prepareSend(1);
+    await flush();
+    calls[1].resolve(result([item(1, { token: 'tok-before-hidden' })]));
+    await flush();
+    expect(calls).toHaveLength(3); // hidden 뒤 재조회를 새로 시작
+    calls[2].resolve(result([item(1, { token: 'tok-after-hidden' })]));
+    await expect(p).resolves.toBe('tok-after-hidden');
+  });
+
+  it('overtakingResultStillExpiringGivesUp — 추월한 응답의 토큰도 11초 이하면 낡은 토큰 대신 null', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1, { expiresIn: 30000 })]));
+    await flush();
+    await vi.advanceTimersByTimeAsync(20000);
+    const p = c.prepareSend(1);
+    await flush();
+    c.refresh();
+    calls[1].resolve(result([item(1, { token: 'tok-A' })]));
+    calls[2].resolve(result([item(1, { token: 'tok-B', expiresIn: 5000 })]));
+    await expect(p).resolves.toBeNull();
+  });
+
+  it('concurrentSendsShareOneRefresh — 동시에 보내는 노출·클릭은 재조회 하나를 함께 기다린다', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1), item(2)]));
+    await flush();
+    c.markHidden();
+    const p1 = c.prepareSend(1);
+    const p2 = c.prepareSend(2);
+    await flush();
+    expect(calls).toHaveLength(2);
+    calls[1].resolve(result([item(1, { token: 'n1' }), item(2, { token: 'n2' })]));
+    await expect(Promise.all([p1, p2])).resolves.toEqual(['n1', 'n2']);
+  });
+});

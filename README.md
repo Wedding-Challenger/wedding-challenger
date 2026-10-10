@@ -1,6 +1,6 @@
 # 웨딩챌린저 (프론트엔드)
 
-예산과 하객 수로 웨딩홀·스드메·스냅 견적을 만들어 주는 웨딩챌린저의 React/Vite 프론트엔드다. 빌드는 client → SSR → 라우트별 사전 렌더링(7개 라우트) 순서이며, 결과물은 Cloudflare Pages 에 배포한다. 백엔드 API 계약은 `src/api/client.js` 주석을 본다.
+예산과 하객 수로 웨딩홀·스드메·스냅 견적을 만들어 주는 웨딩챌린저의 React/Vite 프론트엔드다. 빌드는 client → SSR → 라우트별 사전 렌더링(8개 라우트) 순서이며, 결과물은 Cloudflare Pages 에 배포한다. 백엔드 API 계약은 `src/api/client.js` 주석을 본다.
 
 ## 환경
 

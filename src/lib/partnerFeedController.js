@@ -10,6 +10,7 @@ import { tokenNeedsRefresh } from './partnerMetrics';
 // (자른 타이머가 먼저 깨면 다시 판정해 재예약한다).
 // 화면에 내보내는 목록은 업종 순환(pickRotation)으로 그룹당 1개다. 그룹별 고정은 주입한 페이지뷰 저장소(pins)에 둔다.
 // 측정 전송 전 토큰 준비(prepareSend): hidden 복귀 뒤·토큰 남은 시간 11초 이하면 재조회가 끝난 다음 그 item 의 토큰을 준다.
+// 재조회가 다른 재조회에 추월되면 최신 세대가 실제 반영될 때까지 기다린 뒤 hidden·토큰 신선도를 다시 검사한다.
 export const MAX_TIMER_DELAY = 2 ** 31 - 2;
 export const safeDelay = (ms) => Math.min(Math.max(ms, 0), MAX_TIMER_DELAY);
 
@@ -83,13 +84,25 @@ export function createPartnerFeedController({ load, onUpdate, pins = memoryPins(
     return feed ? visibleItems(feed, Date.now()).find((i) => i.placementId === placementId) ?? null : null;
   }
 
+  // 진행 중인 요청이 없어질 때까지 기다린다. 기다리는 동안 더 새 요청(탭 복귀·focus)이 시작되면 그것까지 기다린다
+  async function settle() {
+    while (inflight && !stopped) await inflight;
+  }
+
+  const isStale = (placementId) => freshEpoch < hiddenEpoch || tokenNeedsRefresh(currentItem(placementId), Date.now());
+
   async function prepareSend(placementId) {
-    if (stopped) return null;
-    // 진행 중인 재조회(탭 복귀 등)가 있으면 그 결과를 먼저 본다
-    if (inflight) await inflight;
-    const stale = freshEpoch < hiddenEpoch || tokenNeedsRefresh(currentItem(placementId), Date.now());
-    if (stale && !stopped) await refresh();
-    if (stopped) return null;
+    let refreshed = false;
+    for (;;) {
+      // 기다릴 요청이 없으면 곧바로 판정한다(동시에 부른 전송이 같은 재조회 하나를 함께 기다리게)
+      if (inflight) await settle();
+      if (stopped) return null;
+      if (!isStale(placementId)) break;
+      // 직접 시작한(또는 그 뒤 추월한) 최신 재조회가 반영됐는데도 hidden 뒤 미갱신·잔여 11초 이하면 측정만 포기
+      if (refreshed) return null;
+      refreshed = true;
+      refresh();
+    }
     const item = currentItem(placementId);
     if (!item?.measurementToken) return null;
     if (item.measurementTokenExpiresAt != null && item.measurementTokenExpiresAt <= Date.now()) return null;

@@ -4,7 +4,7 @@
 // 색인 금지 빌드(production 이 아닌 mode)는 sitemap.xml 을 지우고 robots.txt 전체 차단·_headers noindex 를 더한다.
 // 관리 셸 dist/admin.html 은 사전 렌더링하지 않는다(빈 root 그대로). _headers 의 /admin 블록은 public/_headers 에서 온다.
 // 보통 scripts/build.mjs 가 호출한다. 단독 실행: node scripts/prerender.mjs
-import { readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
@@ -44,7 +44,9 @@ export async function prerender() {
     html = setMeta(html, 'name', 'twitter:title', route.title)
     html = setMeta(html, 'name', 'twitter:description', route.description)
 
+    // '/privacy/previous' → dist/privacy/previous.html (하위 경로는 폴더를 만든다)
     const file = route.path === '/' ? 'index.html' : `${route.path.slice(1)}.html`
+    await mkdir(path.dirname(path.join(dist, file)), { recursive: true })
     await writeFile(path.join(dist, file), html)
     console.log(`prerendered ${route.path} → dist/${file}`)
   }

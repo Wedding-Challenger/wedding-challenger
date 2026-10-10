@@ -13,9 +13,11 @@ import About from './components/About';
 import Guide from './components/Guide';
 import Checklist from './components/Checklist';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import PrivacyPolicyPrevious from './components/PrivacyPolicyPrevious';
 import Terms from './components/Terms';
 import AdminLayout from './components/admin/AdminLayout';
 import PartnerMeasureProvider from './context/PartnerMeasureProvider';
+import { useOverlayHeader } from './context/partnerMeasureShared';
 import './App.css';
 
 const navLinkClass = ({ isActive }) =>
@@ -24,8 +26,10 @@ const navLinkClass = ({ isActive }) =>
   }`;
 
 function Header() {
+  // sticky Header 가 가린 화면 위쪽은 제휴 노출 판정에서 뺀다(실측 높이 → IntersectionObserver rootMargin 위쪽)
+  const headerRef = useOverlayHeader();
   return (
-    <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-warm-beige/30">
+    <header ref={headerRef} className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-warm-beige/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
         <NavLink to="/" className="flex items-center gap-2 sm:gap-3 shrink-0 hover:opacity-80 transition-opacity">
           <span className="text-2xl">💍</span>
@@ -154,6 +158,7 @@ export default function App() {
         <Route path="/guide" element={<Guide />} />
         <Route path="/checklist" element={<Checklist />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/privacy/previous" element={<PrivacyPolicyPrevious />} />
         <Route path="/terms" element={<Terms />} />
         {/* 없는 공개 경로도 Header·Footer 는 그대로 그린다 */}
         <Route path="*" element={null} />

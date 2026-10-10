@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getAllAdminPartners } from '../adminPartners';
 import {
   downloadPartnerReportCsv, getPartnerReport, getPlacementTracking, savePlacementTracking, saveReportMemo,
 } from '../adminPartnerReports';
@@ -86,5 +87,28 @@ describe('관리 리포트 API', () => {
     expect(JSON.parse(init.body)).toEqual({
       utmSource: null, utmMedium: null, utmCampaign: 'invitation_pilot_2026', utmContent: 'home_main', trackingVersion: 1,
     });
+  });
+});
+
+// 리뷰 1판 지적 6: 업체 필터용 관리 목록은 첫 100개가 아니라 전체 페이지
+describe('관리 업체 전체 목록', () => {
+  it('pagesUntilLast — 페이지 응답이면 마지막 페이지까지 받는다(배열 응답은 한 번)', async () => {
+    const pages = [
+      { items: [{ id: 1 }, { id: 2 }], page: 0, totalPages: 3 },
+      { items: [{ id: 3 }], page: 1, totalPages: 3 },
+      { items: [{ id: 4 }], page: 2, totalPages: 3 },
+    ];
+    const fetch = vi.fn(async (url) => ok(pages[Number(new URL(url).searchParams.get('page'))]));
+    vi.stubGlobal('fetch', fetch);
+    expect((await getAllAdminPartners()).map((p) => p.id)).toEqual([1, 2, 3, 4]);
+    expect(fetch.mock.calls.map(([u]) => new URL(u).search)).toEqual(['?page=0&size=100', '?page=1&size=100', '?page=2&size=100']);
+
+    vi.stubGlobal('fetch', vi.fn(async () => ok([{ id: 9 }])));
+    expect((await getAllAdminPartners()).map((p) => p.id)).toEqual([9]);
+
+    // hasNext 형식도 받는다
+    const more = [{ items: [{ id: 1 }], hasNext: true }, { items: [{ id: 2 }], hasNext: false }];
+    vi.stubGlobal('fetch', vi.fn(async (url) => ok(more[Number(new URL(url).searchParams.get('page'))])));
+    expect((await getAllAdminPartners()).map((p) => p.id)).toEqual([1, 2]);
   });
 });

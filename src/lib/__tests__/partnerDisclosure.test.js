@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  AD_LABEL, AD_LABEL_COLOR, AD_NOTICE, TOOLTIP_WIDTH, contrastRatio, disclosureReducer, initialDisclosure, isDisclosureOpen, tooltipAlign,
+  AD_LABEL, AD_LABEL_COLOR, AD_NOTICE, TOOLTIP_WIDTH, contrastRatio, createHoverGrace, disclosureReducer, initialDisclosure, isDisclosureOpen, tooltipPosition,
 } from '../partnerDisclosure';
 
 // 쿠팡식 광고 표시(승인 G4·조율자 H3): 모든 지면 카드 오른쪽 아래 작은 「광고 ⓘ」(항상 보임, 대비 4.5:1 이상),
@@ -54,14 +54,52 @@ describe('ⓘ 말풍선 상태', () => {
   });
 });
 
-describe('말풍선 위치', () => {
-  it('tooltipStaysInsideViewport — 오른쪽 정렬로 왼쪽이 넘치면 왼쪽 정렬, 둘 다 넘치면 화면 왼쪽 여백에 맞춘다', () => {
+// 리뷰 1판 지적 3: 말풍선은 portal(document.body) + fixed 로 띄워 마키 overflow·예산 내부 스크롤에 잘리지 않고,
+// 트리거 화면 좌표 기준으로 뷰포트 안에 둔다.
+describe('말풍선 위치(fixed, viewport 기준)', () => {
+  const vp = { width: 390, height: 780 };
+  it('rightAlignedAboveTrigger — 기본은 트리거 오른쪽 끝에 맞춰 위로(마키 왼쪽 경계와 무관)', () => {
     expect(TOOLTIP_WIDTH).toBe(240);
-    // 카드 오른쪽 끝 근처(화면 가운데 이후) → 버튼 오른쪽에 맞춰 왼쪽으로 펼친다
-    expect(tooltipAlign({ left: 330, right: 350 }, 390)).toEqual({ side: 'right', shift: 0 });
-    // 화면 왼쪽 가장자리 근처 → 버튼 왼쪽에 맞춰 오른쪽으로 펼친다
-    expect(tooltipAlign({ left: 30, right: 46 }, 390)).toEqual({ side: 'left', shift: 0 });
-    // 좁은 화면에서 어느 쪽도 다 안 들어가면 화면 안으로 민다(여백 8px)
-    expect(tooltipAlign({ left: 150, right: 166 }, 300)).toEqual({ side: 'left', shift: -98 });
+    // 리뷰 예: 마키 왼쪽 경계 x=80, 버튼 오른쪽 x=300 → 말풍선 x=60 부터 그대로(조상에 잘리지 않음)
+    expect(tooltipPosition({ left: 276, right: 300, top: 500, bottom: 524 }, { width: 1280, height: 800 }))
+      .toEqual({ left: 60, width: 240, bottom: 308 });
+  });
+
+  it('flipsInsideViewport — 왼쪽이 넘치면 트리거 왼쪽 기준, 둘 다 넘치면 여백 8px 안으로', () => {
+    expect(tooltipPosition({ left: 30, right: 46, top: 500, bottom: 516 }, vp)).toMatchObject({ left: 30 });
+    expect(tooltipPosition({ left: 150, right: 166, top: 500, bottom: 516 }, { width: 300, height: 780 })).toMatchObject({ left: 52, width: 240 });
+    expect(tooltipPosition({ left: 100, right: 116, top: 500, bottom: 516 }, { width: 200, height: 780 })).toMatchObject({ left: 8, width: 184 });
+  });
+
+  it('belowWhenNoRoomAbove — 위쪽이 Header 근처면 트리거 아래로', () => {
+    expect(tooltipPosition({ left: 300, right: 320, top: 60, bottom: 80 }, vp)).toEqual({ left: 80, width: 240, top: 88 });
+  });
+});
+
+// 리뷰 1판 지적 4: 트리거와 말풍선을 함께 hover 영역으로, 사이 간격을 지날 동안 150ms 유예
+describe('hover 유예', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('graceKeepsOpenWhileMovingToTooltip — 트리거를 떠나 150ms 안에 말풍선에 들어가면 닫지 않는다', () => {
+    vi.useFakeTimers();
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+    const hover = createHoverGrace({ onOpen, onClose });
+    hover.enter(); // 트리거
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    hover.leave();
+    vi.advanceTimersByTime(100);
+    hover.enter(); // 말풍선
+    vi.advanceTimersByTime(500);
+    expect(onClose).not.toHaveBeenCalled();
+    hover.leave(); // 말풍선을 떠남
+    vi.advanceTimersByTime(149);
+    expect(onClose).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    hover.leave();
+    hover.dispose();
+    vi.advanceTimersByTime(500);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

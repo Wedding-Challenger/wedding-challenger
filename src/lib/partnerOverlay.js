@@ -2,9 +2,10 @@
 // - 전체 화면 모달(Onboarding): 마운트/언마운트로 등록·해제. 열려 있는 동안 모든 노출 타이머를 멈추고 초기화한다.
 // - 동의 배너(ConsentBanner): open=true 로 렌더된 배너 div 에 ref 가 붙을 때 실측 높이를 등록하고, 떨어지면 0 으로 해제.
 //   전체 정지가 아니라 IntersectionObserver rootMargin 아래쪽을 그 높이만큼 줄여 가린 영역만 뺀다.
+// - 상단 sticky Header: 같은 방식으로 실측 높이를 등록해 rootMargin 위쪽에서 뺀다(헤더 뒤로 들어간 카드를 보인 것으로 세지 않게).
 // 소유자 키(useId)로 등록하므로 StrictMode 의 cleanup→재실행 뒤에도 남는 등록이 없다. 공개 화면 메모리만 쓴다.
 
-export const initialOverlay = { modals: {}, banners: {} };
+export const initialOverlay = { modals: {}, banners: {}, headers: {} };
 
 export function overlayReducer(state, action) {
   switch (action.type) {
@@ -16,31 +17,45 @@ export function overlayReducer(state, action) {
       delete modals[action.owner];
       return { ...state, modals };
     }
-    case 'BANNER_HEIGHT': {
-      const height = Math.max(0, Math.ceil(action.height || 0));
-      if ((state.banners[action.owner] ?? 0) === height) return state;
-      const banners = { ...state.banners };
-      if (height > 0) banners[action.owner] = height;
-      else delete banners[action.owner];
-      return { ...state, banners };
-    }
+    case 'BANNER_HEIGHT':
+      return setHeight(state, 'banners', action);
+    case 'HEADER_HEIGHT':
+      return setHeight(state, 'headers', action);
     default:
       return state;
   }
 }
 
+// 소유자별 높이 등록(0 이면 해제). 배너(하단)·Header(상단 sticky) 공통
+function setHeight(state, key, action) {
+  const height = Math.max(0, Math.ceil(action.height || 0));
+  const map = state[key] ?? {};
+  if ((map[action.owner] ?? 0) === height) return state;
+  const next = { ...map };
+  if (height > 0) next[action.owner] = height;
+  else delete next[action.owner];
+  return { ...state, [key]: next };
+}
+
 export const overlaySummary = (state) => ({
   suspended: Object.keys(state.modals).length > 0,
   bannerHeight: Math.max(0, ...Object.values(state.banners)),
+  headerHeight: Math.max(0, ...Object.values(state.headers ?? {})),
 });
 
-// 하단 배너가 가린 높이만큼 뷰포트 아래쪽을 뺀다(뷰포트 높이까지)
-export function bannerRootMargin(bannerHeight, viewportHeight) {
-  const cut = Math.min(Math.max(0, Math.ceil(bannerHeight || 0)), Math.max(0, Math.floor(viewportHeight || 0)));
-  return `0px 0px ${cut ? `-${cut}` : 0}px 0px`;
+const px = (n) => `${n ? `-${n}` : 0}px`;
+
+// 위쪽은 sticky Header, 아래쪽은 하단 배너가 가린 높이만큼 뷰포트에서 뺀다(둘의 합은 뷰포트 높이까지, Header 먼저)
+export function overlayRootMargin({ headerHeight = 0, bannerHeight = 0 }, viewportHeight) {
+  const vh = Math.max(0, Math.floor(viewportHeight || 0));
+  const top = Math.min(Math.max(0, Math.ceil(headerHeight || 0)), vh);
+  const bottom = Math.min(Math.max(0, Math.ceil(bannerHeight || 0)), vh - top);
+  return `${px(top)} 0px ${px(bottom)} 0px`;
 }
 
-// 배너 div 의 ref 콜백 대상. attach(node) 는 붙을 때, attach(null) 은 떨어질 때(닫힘·언마운트) 부른다.
+export const bannerRootMargin = (bannerHeight, viewportHeight) => overlayRootMargin({ bannerHeight }, viewportHeight);
+
+// 배너·Header 요소의 ref 콜백 대상. attach(node) 는 붙을 때, attach(null) 은 떨어질 때(닫힘·언마운트) 부른다.
 export function createBannerObserver({ onHeight, ResizeObserverImpl }) {
   let observer = null;
   const heightOf = (entry, node) => entry?.borderBoxSize?.[0]?.blockSize ?? node.getBoundingClientRect().height;

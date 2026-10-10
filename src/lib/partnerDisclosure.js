@@ -61,15 +61,49 @@ export function disclosureReducer(s, action) {
 }
 
 // ---- 말풍선 위치 ----
-// 기본은 「광고 ⓘ」 오른쪽 끝에 맞춰 왼쪽으로 펼친다(카드 오른쪽 아래). 화면 왼쪽을 넘으면 왼쪽 끝에 맞춰 오른쪽으로,
-// 그래도 넘치면 화면 안(여백 8px)으로 민다. anchor 는 「광고 ⓘ」 묶음의 화면 좌표.
+// 말풍선은 document.body 로 portal 해 position: fixed 로 띄운다(마키 overflow-hidden·예산 내부 스크롤에 잘리지 않음).
+// 기본은 「광고 ⓘ」 오른쪽 끝에 맞춰 위로 펼친다. 왼쪽이 넘치면 왼쪽 끝 기준, 그래도 넘치면 여백 8px 안으로 민다.
+// 위쪽 여유가 없으면(sticky Header 근처) 아래로. rect 는 트리거 묶음의 getBoundingClientRect(), viewport 는 화면 크기.
 export const TOOLTIP_WIDTH = 240;
 const EDGE = 8;
+const GAP = 8;
+const MIN_ROOM_ABOVE = 96;
 
-export function tooltipAlign(anchor, viewportWidth) {
-  const width = Math.min(TOOLTIP_WIDTH, viewportWidth - EDGE * 2);
-  if (anchor.right - width >= EDGE) return { side: 'right', shift: 0 };
-  if (anchor.left + width <= viewportWidth - EDGE) return { side: 'left', shift: 0 };
-  const shift = Math.max(viewportWidth - EDGE - width - anchor.left, EDGE - anchor.left);
-  return { side: 'left', shift: Math.round(shift) };
+export function tooltipPosition(rect, viewport) {
+  const width = Math.min(TOOLTIP_WIDTH, viewport.width - EDGE * 2);
+  let left;
+  if (rect.right - width >= EDGE) left = rect.right - width;
+  else if (rect.left + width <= viewport.width - EDGE) left = rect.left;
+  else left = Math.max(EDGE, viewport.width - EDGE - width);
+  left = Math.round(left);
+  return rect.top >= MIN_ROOM_ABOVE
+    ? { left, width, bottom: Math.round(viewport.height - rect.top + GAP) }
+    : { left, width, top: Math.round(rect.bottom + GAP) };
+}
+
+// ---- hover 유예 ----
+// 트리거와 말풍선을 한 hover 영역으로 본다. 둘 중 하나를 떠나면 delay 뒤 닫고, 그 안에 다른 쪽에 들어가면 닫지 않는다
+// (사이 간격을 지나는 동안 사라지지 않게).
+export const HOVER_GRACE_MS = 150;
+
+export function createHoverGrace({ onOpen, onClose, delay = HOVER_GRACE_MS }) {
+  let timer = null;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+  return {
+    enter() {
+      cancel();
+      onOpen();
+    },
+    leave() {
+      cancel();
+      timer = setTimeout(() => {
+        timer = null;
+        onClose();
+      }, delay);
+    },
+    dispose: cancel,
+  };
 }

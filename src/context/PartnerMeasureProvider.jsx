@@ -11,10 +11,10 @@ export default function PartnerMeasureProvider({ children }) {
   const [view, setView] = useState(() => ({ pathname, ledger: createPageViewLedger() }));
   if (view.pathname !== pathname) setView({ pathname, ledger: createPageViewLedger() });
   const [overlayState, dispatch] = useReducer(overlayReducer, initialOverlay);
-  const { suspended, bannerHeight } = overlaySummary(overlayState);
+  const { suspended, bannerHeight, headerHeight } = overlaySummary(overlayState);
   const value = useMemo(
-    () => ({ ledger: view.ledger, overlay: { suspended, bannerHeight }, dispatch }),
-    [view.ledger, suspended, bannerHeight],
+    () => ({ ledger: view.ledger, overlay: { suspended, bannerHeight, headerHeight }, dispatch }),
+    [view.ledger, suspended, bannerHeight, headerHeight],
   );
   return <PartnerMeasureContext.Provider value={value}>{children}</PartnerMeasureContext.Provider>;
 }

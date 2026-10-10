@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatCtr, initialTracking, normalizeReport, reportCsvFilename, reportQuery, retentionMonths, trackingReducer, canSaveTracking,
+  dayText, formatCtr, initialTracking, mergePartnerOptions, normalizeReport, reportCsvFilename, reportQuery, retentionMonths, trackingReducer, canSaveTracking,
   validateMemo, validateReportFilter, validateUtm, withDeletedLabel,
 } from '../partnerReports';
 
@@ -143,5 +143,45 @@ describe('월별 메모·UTM(C9)', () => {
     s = trackingReducer(s, { type: 'SAVE_START' });
     s = trackingReducer(s, { type: 'SAVE_OK', tracking: { placementId: 10, trackingVersion: 4, reportMemos: {} } });
     expect(s.tracking.trackingVersion).toBe(4);
+  });
+});
+
+// 리뷰 1판 지적 5·6
+describe('일별 행·업체 필터 선택지', () => {
+  it('outOfScheduleMeasuredShowsCounters — 게재 외 실측 행은 상태 주석과 노출·클릭·제한 누락을 함께', () => {
+    const report = normalizeReport({
+      month: '2026-10', generatedAt: '2026-10-10T03:00:00Z',
+      rows: [{
+        placementId: 10, placementName: '홈', partnerId: 1, partnerName: '샘플', slot: 'HOME_MAIN', deviceClass: 'MOBILE',
+        impressions: 5, clicks: 1, rateLimited: 2,
+        days: [
+          { date: '2026-10-01', status: 'OUT_OF_SCHEDULE', impressions: 5, clicks: 1, rateLimited: 2 },
+          { date: '2026-10-02', status: 'OUT_OF_SCHEDULE', impressions: 0, clicks: 0, rateLimited: 0 },
+          { date: '2026-10-03', status: 'SERVED', impressions: 0, clicks: 0, rateLimited: 0 },
+          { date: '2026-10-04', status: 'SERVED', impressions: 7, clicks: 0, rateLimited: 0 },
+        ],
+      }],
+    });
+    expect(report.rows[0].days.map(dayText)).toEqual([
+      '2026-10-01 · 게재 외(실측 이력 있음) · 노출 5 · 클릭 1 · 제한으로 누락 2건',
+      '2026-10-02 · 게재 외',
+      '2026-10-03 · 노출 0 · 클릭 0',
+      '2026-10-04 · 노출 7 · 클릭 0',
+    ]);
+  });
+
+  it('partnerOptionsMergeAdminListReportAndDirectId — 관리 목록 ∪ 리포트 업체(삭제 표시) ∪ 직접 입력 ID, id 순', () => {
+    const options = mergePartnerOptions(
+      [{ id: 3, name: '샘플 B' }, { id: 1, name: '샘플 A' }],
+      [{ partnerId: 7, partnerLabel: '삭제된 업체 (삭제됨)' }, { partnerId: 1, partnerLabel: '샘플 A' }],
+      '42',
+    );
+    expect(options).toEqual([
+      { value: '1', label: '샘플 A (#1)' },
+      { value: '3', label: '샘플 B (#3)' },
+      { value: '7', label: '삭제된 업체 (삭제됨) (#7)' },
+      { value: '42', label: '#42 (직접 입력)' },
+    ]);
+    expect(mergePartnerOptions([], [], 'x')).toEqual([]);
   });
 });

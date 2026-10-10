@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getAdminMe, getAdminPartners, listItems } from '../../api/adminPartners';
+import { getAdminMe, getAllAdminPartners } from '../../api/adminPartners';
 import {
   downloadPartnerReportCsv, getPartnerReport, getPlacementTracking, savePlacementTracking, saveReportMemo,
 } from '../../api/adminPartnerReports';
 import { SLOTS } from '../../lib/partnerAdmin';
 import {
-  DEVICE_CLASSES, MEMO_MAX, REPORT_NOTES, UTM_FIELDS, canSaveTracking, initialTracking, normalizeReport, retentionMonths,
+  DEVICE_CLASSES, MEMO_MAX, REPORT_NOTES, dayText, mergePartnerOptions, UTM_FIELDS, canSaveTracking, initialTracking, normalizeReport, retentionMonths,
   trackingReducer, validateMemo, validateReportFilter, validateUtm,
 } from '../../lib/partnerReports';
 import { AuthNotice, Banner, Field, input, primary, secondary } from './adminUi';
@@ -157,6 +157,7 @@ export default function PartnerReports() {
   const [filter, setFilter] = useState({ month: months[1], partnerId: '', slot: '', deviceClass: '' });
   const [auth, setAuth] = useState('unknown');
   const [partners, setPartners] = useState([]);
+  const [reportPartners, setReportPartners] = useState([]);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -176,11 +177,18 @@ export default function PartnerReports() {
   const fetchReport = useCallback(async (query) => {
     const my = ++seq.current;
     try {
-      const [, partnerList, result] = await Promise.all([getAdminMe(), getAdminPartners(), getPartnerReport(query)]);
+      const [, partnerList, result] = await Promise.all([getAdminMe(), getAllAdminPartners(), getPartnerReport(query)]);
       if (my !== seq.current) return;
       setAuth('ok');
-      setPartners(listItems(partnerList));
-      setReport({ query, ...normalizeReport(result) });
+      setPartners(partnerList);
+      const next = normalizeReport(result);
+      setReport({ query, ...next });
+      // 리포트에 나온 업체(관리 목록에서 빠진 삭제 업체 포함)는 필터 선택지에 계속 남긴다
+      setReportPartners((prev) => {
+        const map = new Map(prev.map((p) => [p.partnerId, p]));
+        next.rows.forEach((r) => map.set(r.partnerId, { partnerId: r.partnerId, partnerLabel: r.partnerLabel }));
+        return [...map.values()];
+      });
     } catch (err) {
       if (my !== seq.current) return;
       const next = AUTH_BY_KIND[err?.kind];
@@ -236,7 +244,7 @@ export default function PartnerReports() {
       {error && <Banner tone="warn">{error}</Banner>}
 
       <form
-        className="rounded-2xl border border-warm-beige/40 bg-white p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end"
+        className="rounded-2xl border border-warm-beige/40 bg-white p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6 items-end"
         onSubmit={(e) => {
           e.preventDefault();
           if (valid) load({ ...filter });
@@ -250,8 +258,18 @@ export default function PartnerReports() {
         <Field id="report-partner" title="업체" error={errors.partnerId}>
           <select id="report-partner" className={input} value={filter.partnerId} onChange={set('partnerId')}>
             <option value="">전체 업체</option>
-            {partners.map((p) => <option key={p.id} value={String(p.id)}>{p.name} (#{p.id})</option>)}
+            {mergePartnerOptions(partners, reportPartners, filter.partnerId).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+        </Field>
+        <Field id="report-partner-id" title="업체 ID 직접" hint="목록에 없는 업체(삭제 등)는 ID 로">
+          <input
+            id="report-partner-id"
+            className={input}
+            inputMode="numeric"
+            value={filter.partnerId}
+            placeholder="예: 12"
+            onChange={(e) => setFilter({ ...filter, partnerId: e.target.value.trim() })}
+          />
         </Field>
         <Field id="report-slot" title="지면" error={errors.slot}>
           <select id="report-slot" className={input} value={filter.slot} onChange={set('slot')}>
@@ -303,7 +321,7 @@ export default function PartnerReports() {
                           <ul className="mt-1 space-y-0.5">
                             {r.days.map((d) => (
                               <li key={d.date}>
-                                {d.date} · {d.statusLabel ?? `노출 ${num(d.impressions)} · 클릭 ${num(d.clicks)}${d.rateLimited ? ` · 누락 ${num(d.rateLimited)}` : ''}`}
+                                {dayText(d)}
                               </li>
                             ))}
                           </ul>

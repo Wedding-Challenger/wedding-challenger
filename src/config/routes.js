@@ -36,6 +36,11 @@ export const ROUTES = [
     description: '웨딩챌린저의 개인정보 수집·이용 및 광고 쿠키 처리 방침입니다.',
   },
   {
+    path: '/privacy/previous',
+    title: '이전 개인정보처리방침 - 웨딩챌린저',
+    description: '웨딩챌린저 개인정보처리방침의 이전 판(보관용)입니다. 현재 방침과 변경 전후 비교는 개인정보처리방침 페이지에서 확인하세요.',
+  },
+  {
     path: '/terms',
     title: '이용약관 - 웨딩챌린저',
     description: '웨딩챌린저 서비스 이용약관입니다.',

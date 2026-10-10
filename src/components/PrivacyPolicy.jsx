@@ -1,9 +1,10 @@
+import { Link } from 'react-router-dom';
 import { AD_NOTICE } from '../lib/partnerDisclosure';
 
 // PIPA 적합성 검토 필요 — 김경수 P0 게이트 (consent-banner-copy.ko.md 와 정합)
 // 제휴 광고 측정 문구(계획서 B17·승인 G4·G5): 시행일 실제 값과 공지 시점은 운영 개통 전 개인정보 책임자가 정한다.
 // 공지·문구 배포가 집계 on 보다 먼저다. 동의 배너 문구는 쿠키 중심이라 바꾸지 않는다.
-const EFFECTIVE_DATE = null; // 사람이 승인한 시행일('YYYY-MM-DD')을 넣는다
+const EFFECTIVE_DATE = null; // 사람이 승인한 시행일('YYYY-MM-DD')을 넣는다. null 이면 「시행일 공지 예정」
 
 const PARTNER_SECTION1 = `제휴 업체 카드는 ${AD_NOTICE.replace(/입니다\.$/, '이며')}, 카드에 「광고」를 표시합니다. `
   + '광고 효과를 확인하기 위해 자체 측정 코드로 지면·날짜·기기군·광고 배치별 노출 수와 클릭 수의 합계를 기록합니다. '
@@ -32,8 +33,19 @@ export default function PrivacyPolicy() {
       <header>
         <h1 className="text-2xl font-bold text-charcoal">개인정보처리방침</h1>
         <p className="text-sm text-charcoal/40 mt-1">최종 업데이트: 2026-10-10</p>
-        <p className="text-sm text-charcoal/40">시행일: {EFFECTIVE_DATE ?? '확정 후 이 페이지에 공지합니다'}</p>
+        <p className="text-sm text-charcoal/40">시행일: {EFFECTIVE_DATE ?? '시행일 공지 예정'}</p>
       </header>
+
+      <aside role="note" aria-labelledby="privacy-notice-title" className="not-prose rounded-xl border border-soft-gold/40 bg-soft-gold/10 px-4 py-3 text-sm text-charcoal">
+        <p id="privacy-notice-title" className="font-semibold">변경 안내</p>
+        <p className="mt-1">
+          제휴 업체 광고의 자체 합계 측정(노출·클릭 수)과 보관 기간(13개월)을 반영해 방침을 고쳤습니다. 시행일: {EFFECTIVE_DATE ?? '시행일 공지 예정'}.
+        </p>
+        <p className="mt-1 flex flex-wrap gap-x-3">
+          <a href="#privacy-changes" className="text-deep-rose underline">변경 전후 비교 보기</a>
+          <Link to="/privacy/previous" className="text-deep-rose underline">이전 방침 전체 보기</Link>
+        </p>
+      </aside>
 
       <section>
         <h2 className="text-lg font-semibold text-charcoal mt-6 mb-2">1. 수집하는 개인정보 항목</h2>
@@ -121,7 +133,10 @@ export default function PrivacyPolicy() {
         <p>
           본 방침은 법령 및 서비스 변경에 따라 개정될 수 있으며, 변경 시 본 페이지를 통해 공지합니다.
         </p>
-        <h3 className="text-base font-semibold text-charcoal mt-4 mb-2">변경 전후 비교 (제휴 업체 광고 측정)</h3>
+        <h3 id="privacy-changes" className="text-base font-semibold text-charcoal mt-4 mb-2 scroll-mt-24">변경 전후 비교 (제휴 업체 광고 측정)</h3>
+        <p className="text-sm">
+          이전 방침 전문은 <Link to="/privacy/previous" className="text-deep-rose underline">이전 개인정보처리방침</Link>에서 볼 수 있습니다.
+        </p>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm border border-warm-beige/40">
             <thead className="bg-cream text-charcoal/70">

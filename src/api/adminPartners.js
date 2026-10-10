@@ -83,6 +83,26 @@ export const adminLoginUrl = () => `${API_BASE_URL}${ADMIN}/session`;
 
 export const getAdminMe = () => adminRequest('/me');
 export const getAdminPartners = () => adminRequest('/partners?size=100');
+
+// 관리 업체 전체(리포트 업체 필터용). 페이지 응답({ items, page, totalPages } 또는 { items, hasNext })이면 끝까지 받고,
+// 배열 응답이면 한 번. 페이지 번호는 0부터. 서버 이상으로 끝나지 않는 일을 막으려 최대 50페이지.
+const PARTNER_PAGE_SIZE = 100;
+const MAX_PARTNER_PAGES = 50;
+
+export async function getAllAdminPartners() {
+  const all = [];
+  for (let page = 0; page < MAX_PARTNER_PAGES; page++) {
+    const result = await adminRequest(`/partners?page=${page}&size=${PARTNER_PAGE_SIZE}`);
+    if (Array.isArray(result)) return [...all, ...result];
+    const items = result?.items ?? [];
+    all.push(...items);
+    const more = typeof result?.hasNext === 'boolean'
+      ? result.hasNext
+      : Number.isInteger(result?.totalPages) && page + 1 < result.totalPages;
+    if (!more || items.length === 0) break;
+  }
+  return all;
+}
 export const getAdminPartner = (id) => adminRequest(`/partners/${encodeURIComponent(id)}`);
 export const getAdminPlacements = (slot) => adminRequest(`/placements?slot=${encodeURIComponent(slot)}`);
 export const getAdminAudit = (partnerId) => adminRequest(`/audit?partnerId=${encodeURIComponent(partnerId)}`);

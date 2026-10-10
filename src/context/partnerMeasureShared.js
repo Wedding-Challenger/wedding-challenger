@@ -24,18 +24,21 @@ export function useOverlayModal() {
   }, [dispatch, owner]);
 }
 
-// 하단 배너(ConsentBanner): 돌려준 ref 콜백을 open=true 로 렌더한 배너 div 에 붙인다.
-// 붙을 때 ResizeObserver 로 실측 높이를 등록하고, 떨어질 때(닫힘·언마운트) 0 으로 해제한다.
-// 컴포넌트의 조기 return 보다 위에서 부른다(닫힌 채 마운트 → 열림, 푸터에서 다시 열기 모두 ref 재부착으로 다시 잰다).
-export function useOverlayBanner() {
+// 가리는 요소 높이 등록(type: 'BANNER_HEIGHT' 하단 배너 | 'HEADER_HEIGHT' 상단 sticky Header).
+// 돌려준 ref 콜백을 그 요소에 붙인다. 붙을 때 ResizeObserver 로 실측 높이를 등록하고, 떨어질 때(닫힘·언마운트) 0 으로 해제한다.
+// ConsentBanner 는 조기 return 보다 위에서 부른다(닫힌 채 마운트 → 열림, 푸터에서 다시 열기 모두 ref 재부착으로 다시 잰다).
+function useOverlayHeight(type) {
   const { dispatch } = usePartnerMeasure();
   const owner = useId();
   const observer = useMemo(
     () => createBannerObserver({
-      onHeight: (height) => dispatch({ type: 'BANNER_HEIGHT', owner, height }),
+      onHeight: (height) => dispatch({ type, owner, height }),
       ResizeObserverImpl: typeof ResizeObserver === 'undefined' ? undefined : ResizeObserver,
     }),
-    [dispatch, owner],
+    [dispatch, owner, type],
   );
   return useCallback((node) => observer.attach(node), [observer]);
 }
+
+export const useOverlayBanner = () => useOverlayHeight('BANNER_HEIGHT');
+export const useOverlayHeader = () => useOverlayHeight('HEADER_HEIGHT');
