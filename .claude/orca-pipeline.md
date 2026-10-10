@@ -26,14 +26,14 @@
   - 낮음: 파일 1~3개, 문구·스타일·테스트 위주, 운영 데이터·배포 경로 영향 없음
   - 보통: 여러 컴포넌트, 상태·저장 형식 변경, 레포 하나
   - 높음: 배포 워크플로·도메인·광고/동의 흐름, 두 레포에 걸침, 저장 형식 호환성
-- 역할 × 난이도 (에이전트 / 모델 / effort) — 2026-10-08 사람 결정(균형형, Codex 는 sol=high 전용·낮음은 luna/max):
+- 역할 × 난이도 (에이전트 / 모델 / effort) — 2026-10-08 사람 결정(균형형), 2026-10-11 사람 결정으로 Codex 역할은 난이도와 관계없이 luna/max:
 
 | 역할 | 낮음 | 보통 | 높음 |
 |---|---|---|---|
-| ① 기획 | codex / gpt-6-luna / max | codex / gpt-6.1-sol / high | codex / gpt-6.1-sol / high |
+| ① 기획 | codex / gpt-6-luna / max | codex / gpt-6-luna / max | codex / gpt-6-luna / max |
 | ② 교차 검증 | claude / claude-sonnet-5-5 / medium | claude / claude-sonnet-5-5 / high | claude / claude-opus-5-5 / high |
 | ⑤ 구현 | claude / claude-sonnet-5-5 / high | claude / claude-opus-5-5 / high | claude / claude-opus-5-5 / high |
-| ⑥ 차이 리뷰 | codex / gpt-6-luna / max | codex / gpt-6.1-sol / high | codex / gpt-6.1-sol / high |
+| ⑥ 차이 리뷰 | codex / gpt-6-luna / max | codex / gpt-6-luna / max | codex / gpt-6-luna / max |
 | ⑧ git 담당(서브에이전트) | claude-haiku-4-5 | claude-sonnet-5-5 | claude-sonnet-5-5 |
 
 ## 모델 대체
@@ -64,7 +64,7 @@
 | ⑥ 차이 리뷰 | codex / gpt-6-luna / max | codex / gpt-6-luna / max | codex / gpt-6-luna / max |
 | ⑧ git 담당 | 조율자가 직접(git-flow-manager 는 Claude Code 플러그인이라 못 씀) — 같은 규칙(이슈·브랜치·커밋 형식·서명 줄, master 직접 푸시·강제 푸시 금지) | | |
 
-- Codex 는 `gpt-6.1-sol`을 high 로만 쓴다(2026-10-08 사람 결정). 같은 단계에서 쓰는 쪽과 보는 쪽은 sol ↔ luna 로 엇갈린다.
+- Codex 는 `gpt-6.1-sol`을 high 로만 쓴다(2026-10-08 사람 결정). 같은 단계에서 쓰는 쪽과 보는 쪽은 sol ↔ luna 로 엇갈린다(같은 모델 금지 — 그래서 이 표에서만 sol 을 쓴다).
 
 - 절차·조율자 인계는 플러그인 orca-pipeline ≥0.3.0 SKILL.md §4.12 · TEMPLATES.md §9 를 따른다. 한도 근거가 확인됐을 때만 대체한다.
 
