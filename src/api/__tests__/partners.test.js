@@ -30,7 +30,8 @@ describe('공개 제휴 업체 API', () => {
       'http://localhost:8080/api/v1/partners?slot=BUDGET_PARTNERS',
       { cache: 'no-store', credentials: 'omit' },
     );
-    expect(PARTNER_SLOTS).toEqual(['HOME_MAIN', 'BUDGET_PARTNERS']);
+    // v1.1 가이드·체크리스트 사이드 슬롯 추가(계획서 §3.1)
+    expect(PARTNER_SLOTS).toEqual(['HOME_MAIN', 'BUDGET_PARTNERS', 'GUIDE_SIDEBAR', 'CHECKLIST_SIDEBAR']);
   });
 
   it('unknownSlotRejectedBeforeFetch — 모르는 slot 은 요청하지 않는다', async () => {
