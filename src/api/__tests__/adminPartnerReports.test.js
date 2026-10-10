@@ -80,13 +80,39 @@ describe('관리 리포트 API', () => {
     vi.stubGlobal('fetch', fetch);
     await getPlacementTracking(10);
     expect(fetch.mock.calls[0][0]).toBe('http://localhost:8080/api/v1/admin/placements/10/tracking');
-    await savePlacementTracking(10, { utmSource: '', utmMedium: ' ', utmCampaign: 'invitation_pilot_2026', utmContent: 'home_main', trackingVersion: 1 });
+    await savePlacementTracking(10, {
+      utmEnabled: true, utmSource: '', utmMedium: ' ', utmCampaign: 'invitation_pilot_2026', utmContent: 'home_main', trackingVersion: 1,
+    });
     const [url, init] = fetch.mock.calls[1];
     expect(url).toBe('http://localhost:8080/api/v1/admin/placements/10/tracking');
     expect(init.method).toBe('PUT');
     expect(JSON.parse(init.body)).toEqual({
-      utmSource: null, utmMedium: null, utmCampaign: 'invitation_pilot_2026', utmContent: 'home_main', trackingVersion: 1,
+      utmEnabled: true, utmSource: null, utmMedium: null, utmCampaign: 'invitation_pilot_2026', utmContent: 'home_main', trackingVersion: 1,
     });
+  });
+
+  // FE #35: BE 는 utmEnabled 를 생략하면 true 로 저장한다 → 토글 값을 늘 함께 보내야 UTM off 가 유지된다
+  it('utmPutAlwaysSendsUtmEnabled — off 도 false 로 보내고, 빠지면 요청하지 않는다', async () => {
+    const fetch = vi.fn(async () => ok({ placementId: 10, trackingVersion: 2 }));
+    vi.stubGlobal('fetch', fetch);
+    await savePlacementTracking(10, { utmEnabled: false, utmCampaign: 'keep_me', trackingVersion: 1 });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      utmEnabled: false, utmSource: null, utmMedium: null, utmCampaign: 'keep_me', utmContent: null, trackingVersion: 1,
+    });
+    await expect(savePlacementTracking(10, { utmCampaign: 'x', trackingVersion: 1 })).rejects.toThrow(/utmEnabled/);
+    await expect(savePlacementTracking(10, { utmEnabled: 'false', trackingVersion: 1 })).rejects.toThrow(/utmEnabled/);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('trackingVersionOmittedWhenAbsent — tracking 행이 없으면(최초 생성) trackingVersion 키를 보내지 않는다', async () => {
+    const fetch = vi.fn(async () => ok({ placementId: 10, trackingVersion: 0 }));
+    vi.stubGlobal('fetch', fetch);
+    await savePlacementTracking(10, { utmEnabled: true, trackingVersion: null });
+    await saveReportMemo(10, '2026-10', { memo: '첫 메모', trackingVersion: undefined });
+    const [tracking, memo] = fetch.mock.calls.map(([, init]) => JSON.parse(init.body));
+    expect(tracking).not.toHaveProperty('trackingVersion');
+    expect(tracking.utmEnabled).toBe(true);
+    expect(memo).toEqual({ memo: '첫 메모' });
   });
 });
 

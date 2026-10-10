@@ -1,6 +1,7 @@
 // 관리 화면 월별 제휴 리포트·월별 메모·UTM 설정의 순수 함수 (계획서 §3.3·§3.4, B6·B7·B14·C5·C9).
 // 화면은 src/components/admin/PartnerReports.jsx, API 는 src/api/adminPartnerReports.js.
-// - 표 수치(노출·클릭·제한으로 누락 N)·0/「게재 외」 합성·삭제 여부는 서버가 정한다. FE 는 표시·가중 CTR·합계·파일명만 만든다.
+// - 표 수치(노출·클릭·제한으로 누락 N)·0/「게재 외」/「집계 전」 합성·삭제 여부는 서버가 정한다. FE 는 표시·가중 CTR·합계·파일명만 만든다.
+// - 일별 status(BE #28 ADR-016): MEASURED | ZERO | OUT_OF_SCHEDULE | OUT_OF_SCHEDULE_MEASURED | NOT_YET(오늘 이후, 0 아님).
 // - CTR = Σ클릭 / Σ노출 × 100, 소수 둘째 자리 HALF_UP, 노출 0 이면 「—」. 누락 N 은 분자·분모에 넣지 않는다.
 // - CSV 파일명은 검증된 필터로 FE 가 만든다: partner-report-<YYYY-MM>[-<partnerId>].csv (Content-Disposition 에 기대지 않음).
 import { formatKst, SLOTS } from './partnerAdmin';
@@ -15,10 +16,10 @@ export const RETENTION_MONTHS = 13;
 export const MEMO_MAX = 2000;
 export const UTM_MAX = 100;
 export const UTM_FIELDS = [
-  { key: 'utmSource', label: 'utm_source', auto: 'wedding-challenger' },
-  { key: 'utmMedium', label: 'utm_medium', auto: 'display' },
-  { key: 'utmCampaign', label: 'utm_campaign', auto: 'partner_<업체 ID>' },
-  { key: 'utmContent', label: 'utm_content', auto: '<지면 이름 소문자>' },
+  { key: 'utmSource', label: 'utm_source', auto: 'wedding-challenger', defaultKey: 'source' },
+  { key: 'utmMedium', label: 'utm_medium', auto: 'display', defaultKey: 'medium' },
+  { key: 'utmCampaign', label: 'utm_campaign', auto: 'partner_<업체 ID>', defaultKey: 'campaign' },
+  { key: 'utmContent', label: 'utm_content', auto: '<지면 이름 소문자>', defaultKey: 'content' },
 ];
 
 // 리포트에 늘 붙이는 측정 정의·한계 주석(계획서 §3.2·§3.3, 조율자 H1)
@@ -99,17 +100,49 @@ export const withDeletedLabel = (name, deleted) =>
 const count = (v) => (Number.isFinite(v) && v > 0 ? Math.trunc(v) : 0);
 const labelOf = (list, value) => list.find((o) => o.value === value)?.label ?? value ?? '-';
 
+export const NOT_YET = '집계 전';
+
+// 서버 status 가 우선. 모르는 값(옛 응답)만 카운터로 실측 여부를 짐작한다
 function dayStatus(day) {
   const measured = count(day.impressions) + count(day.clicks) + count(day.rateLimited) > 0;
-  if (day.status === 'OUT_OF_SCHEDULE') return measured ? '게재 외(실측 이력 있음)' : '게재 외';
-  return measured ? null : '0';
+  switch (day.status) {
+    case 'NOT_YET': return NOT_YET;
+    case 'OUT_OF_SCHEDULE_MEASURED': return '게재 외(실측 이력 있음)';
+    case 'OUT_OF_SCHEDULE': return measured ? '게재 외(실측 이력 있음)' : '게재 외';
+    case 'ZERO': return measured ? null : '0';
+    case 'MEASURED': return null;
+    default: return measured ? null : '0';
+  }
 }
+
+function normalizeDay(d) {
+  const statusLabel = dayStatus(d);
+  // 집계 전은 0 이 아니다 — 카운터를 비워 표시·합계·CTR 어디에도 들어가지 않게 한다
+  const counter = (v) => (statusLabel === NOT_YET ? null : count(v));
+  return {
+    date: d.date,
+    status: typeof d.status === 'string' ? d.status : null,
+    impressions: counter(d.impressions),
+    clicks: counter(d.clicks),
+    rateLimited: counter(d.rateLimited),
+    suspectedAnomaly: statusLabel !== NOT_YET && d.suspectedAnomaly === true,
+    statusLabel,
+  };
+}
+
+function servingLabel(from, until) {
+  if (!from && !until) return '';
+  return `게재 ${from ? formatKst(from) : '-'} ~ ${until ? formatKst(until) : '-'}`;
+}
+
+const stringList = (v) => (Array.isArray(v) && v.length > 0 && v.every((n) => typeof n === 'string') ? v : null);
 
 export function normalizeReport(result) {
   const rows = (Array.isArray(result?.rows) ? result.rows : []).map((r) => {
     const impressions = count(r.impressions);
     const clicks = count(r.clicks);
     const dates = Array.isArray(r.suspectedAnomalyDates) ? r.suspectedAnomalyDates.filter(isDate) : [];
+    const days = (Array.isArray(r.days) ? r.days : []).filter((d) => isDate(d?.date)).map(normalizeDay);
     return {
       key: `${r.placementId}:${r.slot}:${r.deviceClass}`,
       placementId: r.placementId,
@@ -125,13 +158,9 @@ export function normalizeReport(result) {
       anomaly: dates.length ? `이상 의심 ${dates.join(', ')}` : '',
       // 그 월·배치의 운영 메모(장애·off 기간 등). 자동 판정이 아니라 담당자가 쓴 설명이다
       memo: typeof r.memo === 'string' ? r.memo : '',
-      days: (Array.isArray(r.days) ? r.days : []).filter((d) => isDate(d?.date)).map((d) => ({
-        date: d.date,
-        impressions: count(d.impressions),
-        clicks: count(d.clicks),
-        rateLimited: count(d.rateLimited),
-        statusLabel: dayStatus(d),
-      })),
+      servingLabel: servingLabel(r.servingFrom, r.servingUntil),
+      days,
+      notYetDays: days.filter((d) => d.statusLabel === NOT_YET).length,
     };
   });
   const sum = (k) => rows.reduce((acc, r) => acc + r[k], 0);
@@ -140,6 +169,8 @@ export function normalizeReport(result) {
   return {
     month: result?.month ?? null,
     generatedAtKst: formatKst(result?.generatedAt),
+    // 측정 정의·한계 주석은 서버 notes 가 출처(집계 전 설명 포함), 없으면 FE 기본 문구
+    notes: stringList(result?.notes) ?? REPORT_NOTES,
     rows,
     totals: { impressions, clicks, rateLimited: sum('rateLimited'), ctr: formatCtr(clicks, impressions) },
   };
@@ -147,10 +178,11 @@ export function normalizeReport(result) {
 
 // 일별 행 표시: 실측이 있으면 상태 주석(게재 외 등)과 노출·클릭·제한 누락을 함께 보인다(기간 수정 뒤 대조용)
 export function dayText(day) {
-  if (day.statusLabel === '게재 외') return `${day.date} · 게재 외`;
+  if (day.statusLabel === '게재 외' || day.statusLabel === NOT_YET) return `${day.date} · ${day.statusLabel}`;
   const counters = [`노출 ${day.impressions.toLocaleString('ko-KR')}`, `클릭 ${day.clicks.toLocaleString('ko-KR')}`];
   if (day.rateLimited) counters.push(`제한으로 누락 ${day.rateLimited.toLocaleString('ko-KR')}건`);
   const note = day.statusLabel && day.statusLabel !== '0' ? [day.statusLabel] : [];
+  if (day.suspectedAnomaly) note.push('이상 의심');
   return [day.date, ...note, ...counters].join(' · ');
 }
 
@@ -187,6 +219,33 @@ export function validateUtm(form) {
     else if (!/^[A-Za-z0-9._-]+$/.test(value)) errors[key] = '영문·숫자·. _ - 만 쓸 수 있습니다(이름·연락처·계약번호 금지)';
   }
   return errors;
+}
+
+// tracking 응답(BE AdminTrackingResponse)을 화면 값으로. previews 는 지면별 맵(단일 previewUrl 없음),
+// trackingVersion 은 행이 없으면 키가 없다(null = 다음 저장이 최초 생성), utmEnabled 는 꺼짐만 false.
+export function trackingView(tracking) {
+  const defaults = tracking?.defaults ?? {};
+  const previews = tracking?.previews ?? {};
+  const utmEnabled = tracking?.utmEnabled !== false;
+  return {
+    utmEnabled,
+    trackingVersion: Number.isFinite(tracking?.trackingVersion) ? tracking.trackingVersion : null,
+    defaults: Object.fromEntries(UTM_FIELDS.map(({ key, auto, defaultKey }) => [
+      key, typeof defaults[defaultKey] === 'string' && defaults[defaultKey] ? defaults[defaultKey] : auto,
+    ])),
+    previews: SLOTS.filter((s) => typeof previews[s.value] === 'string' && previews[s.value])
+      .map((s) => ({ slot: s.value, label: s.label, url: previews[s.value] })),
+    // UTM 을 끄면 링크를 그대로 쓰므로 utm_content 충돌 경고도 뜻이 없다(BE 도 false)
+    contentWarning: utmEnabled && tracking?.contentWarning === true,
+  };
+}
+
+// UTM 입력 초안: 토글 + override(null = 자동값은 빈칸)
+export function trackingDraft(tracking) {
+  return {
+    utmEnabled: tracking?.utmEnabled !== false,
+    ...Object.fromEntries(UTM_FIELDS.map(({ key }) => [key, tracking?.[key] ?? ''])),
+  };
 }
 
 // tracking(UTM·월별 메모) 한 배치의 화면 상태. 409 는 최신 불러오기 성공 전까지 저장을 잠근다(자체 trackingVersion).

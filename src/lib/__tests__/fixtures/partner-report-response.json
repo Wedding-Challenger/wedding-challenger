@@ -1,0 +1,57 @@
+{
+  "_source": "BE Wedding-Challenger-Spring #28 daef0c6 — AdminPartnerReportResponse(month·generatedAt·notes·rows[]·totals) 최종 계약 모양. src/test/resources/contracts/fe-partner-report-response.json 의 키에 OUT_OF_SCHEDULE_MEASURED·NOT_YET·deviceClass null 행·servingFrom/Until·days[].suspectedAnomaly·ctr·totals 를 더했다. 값은 mock(실제 업체·수치 아님).",
+  "month": "2026-10",
+  "generatedAt": "2026-10-10T12:00:00+09:00",
+  "notes": ["측정 정의 예시 주석", "현재 월의 오늘 이후 날짜는 「집계 전」(NOT_YET)이며 0 으로 채우지 않는다."],
+  "rows": [
+    {
+      "placementId": 10,
+      "placementName": "배치 #10",
+      "placementDeleted": false,
+      "partnerId": 1,
+      "partnerName": "샘플 청첩장",
+      "partnerDeleted": true,
+      "slot": "HOME_MAIN",
+      "deviceClass": "MOBILE",
+      "impressions": 205,
+      "clicks": 4,
+      "ctr": "1.95",
+      "rateLimited": 6,
+      "suspectedAnomalyDates": ["2026-10-03"],
+      "memo": "10/3 장애로 측정 off",
+      "servingFrom": "2026-10-02T00:00:00+09:00",
+      "servingUntil": "2026-10-04T00:00:00+09:00",
+      "days": [
+        { "date": "2026-10-01", "status": "OUT_OF_SCHEDULE", "impressions": 0, "clicks": 0, "rateLimited": 0, "suspectedAnomaly": false },
+        { "date": "2026-10-02", "status": "ZERO", "impressions": 0, "clicks": 0, "rateLimited": 0, "suspectedAnomaly": false },
+        { "date": "2026-10-03", "status": "MEASURED", "impressions": 200, "clicks": 3, "rateLimited": 4, "suspectedAnomaly": true },
+        { "date": "2026-10-04", "status": "OUT_OF_SCHEDULE_MEASURED", "impressions": 5, "clicks": 1, "rateLimited": 2, "suspectedAnomaly": false },
+        { "date": "2026-10-10", "status": "ZERO", "impressions": 0, "clicks": 0, "rateLimited": 0, "suspectedAnomaly": false },
+        { "date": "2026-10-11", "status": "NOT_YET", "impressions": 0, "clicks": 0, "rateLimited": 0, "suspectedAnomaly": false }
+      ]
+    },
+    {
+      "placementId": 11,
+      "placementName": "배치 #11",
+      "placementDeleted": true,
+      "partnerId": 2,
+      "partnerName": "샘플 스튜디오",
+      "partnerDeleted": false,
+      "slot": "GUIDE_SIDEBAR",
+      "deviceClass": null,
+      "impressions": 0,
+      "clicks": 0,
+      "ctr": null,
+      "rateLimited": 0,
+      "suspectedAnomalyDates": [],
+      "memo": null,
+      "servingFrom": null,
+      "servingUntil": null,
+      "days": [
+        { "date": "2026-10-01", "status": "OUT_OF_SCHEDULE", "impressions": 0, "clicks": 0, "rateLimited": 0, "suspectedAnomaly": false },
+        { "date": "2026-10-11", "status": "NOT_YET", "impressions": 0, "clicks": 0, "rateLimited": 0, "suspectedAnomaly": false }
+      ]
+    }
+  ],
+  "totals": { "impressions": 205, "clicks": 4, "ctr": "1.95", "rateLimited": 6, "suspectedAnomalyDates": ["2026-10-03"] }
+}

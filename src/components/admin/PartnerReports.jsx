@@ -6,13 +6,13 @@ import {
 } from '../../api/adminPartnerReports';
 import { SLOTS } from '../../lib/partnerAdmin';
 import {
-  DEVICE_CLASSES, MEMO_MAX, REPORT_NOTES, dayText, mergePartnerOptions, UTM_FIELDS, canSaveTracking, initialTracking, normalizeReport, retentionMonths,
-  trackingReducer, validateMemo, validateReportFilter, validateUtm,
+  DEVICE_CLASSES, MEMO_MAX, dayText, mergePartnerOptions, UTM_FIELDS, canSaveTracking, initialTracking, normalizeReport, retentionMonths,
+  trackingDraft, trackingReducer, trackingView, validateMemo, validateReportFilter, validateUtm,
 } from '../../lib/partnerReports';
 import { AuthNotice, Banner, Field, input, primary, secondary } from './adminUi';
 
 // 월별 제휴 리포트 (관리 셸 /admin/partner-reports, 계획서 §3.3). 표·CSV·월별 메모·배치별 UTM.
-// 수치·0/게재 외 합성·삭제 표시는 서버가 정한다. 화면은 필터 검증·가중 CTR·합계·CSV 파일명·409 잠금만 맡는다.
+// 수치·0/게재 외/집계 전 합성·삭제 표시는 서버가 정한다. 화면은 필터 검증·가중 CTR·합계·CSV 파일명·409 잠금만 맡는다.
 // 월초 전달은 사람이 이 화면에서 지난 달 CSV 를 내려받아 측정 정의·이상 의심·제한 누락·메모를 확인한 뒤 보낸다.
 
 const AUTH_BY_KIND = { login: 'login', forbidden: 'forbidden', notFound: 'disabled' };
@@ -30,6 +30,45 @@ function saveBlob(blob, filename) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+// 한 행의 일별 상태(0·게재 외·게재 외 실측·집계 전). 집계 전은 0 이 아니므로 요약에 일수를 따로 적는다
+export function ReportDays({ row }) {
+  if (row.days.length === 0) return null;
+  return (
+    <details className="mt-1 text-xs text-charcoal/60">
+      <summary className="cursor-pointer">{`일별${row.notYetDays ? ` (집계 전 ${row.notYetDays}일)` : ''}`}</summary>
+      <ul className="mt-1 space-y-0.5">
+        {row.days.map((d) => <li key={d.date}>{dayText(d)}</li>)}
+      </ul>
+    </details>
+  );
+}
+
+// 저장된 설정 기준 지면별 공개 링크 미리보기(서버 previews 맵). 입력을 바꾼 뒤에는 저장해야 갱신된다
+export function UtmPreviewList({ view }) {
+  return (
+    <div className="space-y-2">
+      {view.contentWarning && (
+        <Banner tone="warn">
+          업체 링크에 이미 다른 utm_content 가 있어 지면별 비교가 흐려집니다. 지면별로 나눠 보려면 utm_content 를 직접 정하거나 업체 링크를 고치세요.
+        </Banner>
+      )}
+      <p className="text-xs text-charcoal/60">
+        {view.utmEnabled ? '저장된 설정 기준 지면별 링크 미리보기' : '저장된 설정: UTM 꺼짐 — 업체 링크를 UTM 없이 그대로 씁니다'}
+      </p>
+      {view.previews.length > 0 && (
+        <dl className="grid gap-1 text-xs sm:grid-cols-[max-content_1fr] sm:gap-x-3">
+          {view.previews.map((p) => (
+            <div key={p.slot} className="contents">
+              <dt className="font-semibold text-charcoal/70">{p.label}</dt>
+              <dd className="text-charcoal/60 break-all">{p.url}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
 }
 
 // 한 배치의 UTM·이 월 메모. trackingVersion 으로 동시 수정을 막고, 409 면 「최신 불러오기」 전까지 잠근다.
@@ -67,7 +106,8 @@ function TrackingPanel({ placement, month, onSaved, onClose, onAuth }) {
     if (!canSaveTracking(state)) return;
     dispatch({ type: 'SAVE_START' });
     try {
-      const tracking = await task(state.tracking.trackingVersion);
+      // 행이 없으면 null → 요청에서 trackingVersion 을 빼 최초 생성으로 보낸다
+      const tracking = await task(trackingView(state.tracking).trackingVersion);
       dispatch({ type: 'SAVE_OK', tracking, notice });
       onSaved();
     } catch (error) {
@@ -78,7 +118,8 @@ function TrackingPanel({ placement, month, onSaved, onClose, onAuth }) {
 
   const current = state.tracking;
   const own = draft.base === current;
-  const utm = own ? draft.utm : current && Object.fromEntries(UTM_FIELDS.map(({ key }) => [key, current[key] ?? '']));
+  const utm = own ? draft.utm : current && trackingDraft(current);
+  const view = current && trackingView(current);
   const memo = own ? draft.memo : current?.reportMemos?.[month] ?? '';
   const setUtm = (next) => setDraft({ base: current, utm: next, memo });
   const setMemo = (next) => setDraft({ base: current, utm, memo: next });
@@ -111,25 +152,37 @@ function TrackingPanel({ placement, month, onSaved, onClose, onAuth }) {
               save((trackingVersion) => savePlacementTracking(placement.placementId, { ...utm, trackingVersion }), 'UTM 을 저장했습니다');
             }}
           >
-            <p className="text-xs text-charcoal/50">비우면 자동값을 씁니다. 우선순위: 여기 입력 &gt; 업체 링크에 이미 있는 UTM &gt; 자동값.</p>
+            <label htmlFor={id('utm-enabled')} className="flex items-center gap-2 text-sm text-charcoal">
+              <input
+                id={id('utm-enabled')}
+                type="checkbox"
+                checked={utm.utmEnabled}
+                disabled={locked}
+                onChange={(e) => setUtm({ ...utm, utmEnabled: e.target.checked })}
+              />
+              업체 링크에 UTM 붙이기
+            </label>
+            <p className="text-xs text-charcoal/50">
+              {utm.utmEnabled
+                ? '비우면 자동값을 씁니다. 우선순위: 여기 입력 > 업체 링크에 이미 있는 UTM > 자동값.'
+                : '끄면 업체 링크를 그대로 씁니다. 아래 입력값은 지우지 않고 보관하며, 다시 켜면 적용됩니다.'}
+            </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              {UTM_FIELDS.map(({ key, label, auto }) => (
-                <Field key={key} id={id(key)} title={label} hint={`자동값: ${auto}`} error={utmErrors[key]}>
+              {UTM_FIELDS.map(({ key, label }) => (
+                <Field key={key} id={id(key)} title={label} hint={`자동값: ${view.defaults[key]}`} error={utmErrors[key]}>
                   <input
                     id={id(key)}
                     className={input}
                     value={utm[key]}
                     maxLength={100}
-                    placeholder={auto}
+                    placeholder={view.defaults[key]}
                     disabled={locked}
                     onChange={(e) => setUtm({ ...utm, [key]: e.target.value })}
                   />
                 </Field>
               ))}
             </div>
-            {state.tracking.previewUrl && (
-              <p className="text-xs text-charcoal/60 break-all">공개 링크 미리보기: {state.tracking.previewUrl}</p>
-            )}
+            <UtmPreviewList view={view} />
             <button type="submit" className={primary} disabled={locked || Object.keys(utmErrors).length > 0}>UTM 저장</button>
           </form>
           <form
@@ -315,18 +368,8 @@ export default function PartnerReports() {
                     <td className="px-3 py-2">{r.partnerLabel}</td>
                     <td className="px-3 py-2">
                       {r.placementLabel}
-                      {r.days.length > 0 && (
-                        <details className="mt-1 text-xs text-charcoal/60">
-                          <summary className="cursor-pointer">일별</summary>
-                          <ul className="mt-1 space-y-0.5">
-                            {r.days.map((d) => (
-                              <li key={d.date}>
-                                {dayText(d)}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
+                      {r.servingLabel && <p className="text-xs text-charcoal/50">{r.servingLabel}</p>}
+                      <ReportDays row={r} />
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{r.slotLabel}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{r.deviceLabel}</td>
@@ -357,7 +400,7 @@ export default function PartnerReports() {
             </table>
           </div>
           <ul className="list-disc pl-5 space-y-1 text-xs text-charcoal/50">
-            {REPORT_NOTES.map((n) => <li key={n}>{n}</li>)}
+            {report.notes.map((n) => <li key={n}>{n}</li>)}
           </ul>
         </section>
       )}
