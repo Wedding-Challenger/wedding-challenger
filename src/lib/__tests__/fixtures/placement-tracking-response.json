@@ -1,0 +1,21 @@
+{
+  "_source": "BE Wedding-Challenger-Spring #28 daef0c6 — AdminTrackingResponse 최종 계약 모양(trackingVersion 은 행이 없으면 키 생략). 값은 mock(예시 도메인).",
+  "placementId": 10,
+  "partnerId": 1,
+  "placementVersion": 3,
+  "trackingVersion": 2,
+  "utmEnabled": true,
+  "utmSource": null,
+  "utmMedium": null,
+  "utmCampaign": "invitation_pilot_2026",
+  "utmContent": null,
+  "defaults": { "source": "wedding-challenger", "medium": "display", "campaign": "partner_1", "content": "home_main" },
+  "previews": {
+    "HOME_MAIN": "https://partner.example/landing?utm_source=wedding-challenger&utm_content=home_main",
+    "BUDGET_PARTNERS": "https://partner.example/landing?utm_source=wedding-challenger&utm_content=budget_partners",
+    "GUIDE_SIDEBAR": "https://partner.example/landing?utm_source=wedding-challenger&utm_content=guide_sidebar",
+    "CHECKLIST_SIDEBAR": "https://partner.example/landing?utm_source=wedding-challenger&utm_content=checklist_sidebar"
+  },
+  "contentWarning": true,
+  "reportMemos": { "2026-10": "10/3 장애로 측정 off" }
+}
