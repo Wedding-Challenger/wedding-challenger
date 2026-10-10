@@ -9,3 +9,5 @@ export const siteUrl = config.siteUrl
 // 광고·색인은 production 빌드에서만 true. 광고는 여기에 사용자 동의가 더해져야 켜진다.
 export const adsEnabled = config.adsEnabled
 export const indexable = config.indexable
+// 제휴 가이드·체크리스트 PC 사이드 열 레이아웃 플래그(보안·노출 제어 아님 — 노출은 서버 slotEnabled 가 정한다)
+export const partnerSideLayoutEnabled = config.partnerSideLayoutEnabled

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import { FOOD_PRESETS, RENT_PRESETS } from '../lib/budgetPresets';
 import { BudgetInput, ConditionSummary, GuestInput, RangeInput } from './ConditionInputs';
+import { useOverlayModal } from '../context/partnerMeasureShared';
 
 // 단계: 0 인사 → 1 전체 예산 → 2 대관료 범위 → 3 식대 범위 → 4 하객 수 (2026-10-02 형과 합의한 순서)
 const STEPS = [
@@ -14,6 +15,8 @@ const STEPS = [
 const LAST = STEPS.length - 1;
 
 export default function Onboarding({ picked }) {
+  // 화면 전체를 덮는 모달: 마운트 동안 제휴 노출 측정을 전부 멈춘다(계획서 C1·C8)
+  useOverlayModal();
   const ctx = useBudget();
   const { dispatch, reopened } = ctx;
   // 다시 설정할 때는 인사 단계를 건너뛰고 현재 값을 채워 둔다

@@ -1,8 +1,7 @@
-import { createContext, useContext, useEffect, useReducer } from 'react';
+import { useEffect, useReducer } from 'react';
 import { STUDIO_STATS, DRESS_STATS, MAKEUP_STATS, getRange } from '../data/sdmeStats';
 import { loadBudget, saveBudget } from '../lib/budgetStorage';
-
-const BudgetContext = createContext();
+import { BudgetContext } from './budgetContextShared';
 
 const initialState = {
   // Onboarding — 기본값은 온보딩 기본 선택(5천만원·200명)과 같다
@@ -242,10 +241,4 @@ export function BudgetProvider({ children }) {
   };
 
   return <BudgetContext.Provider value={value}>{children}</BudgetContext.Provider>;
-}
-
-export function useBudget() {
-  const context = useContext(BudgetContext);
-  if (!context) throw new Error('useBudget must be used within BudgetProvider');
-  return context;
 }

@@ -1,14 +1,18 @@
 import { Link } from 'react-router-dom';
+import { useOverlayBanner } from '../context/partnerMeasureShared';
 
 // 열림 여부·저장은 App 이 관리. 첫 방문 시 자동 표시, 이후 푸터 「광고 동의 설정」으로 다시 열림.
+// 제휴 노출 측정은 배너가 가린 아래쪽만 뺀다(계획서 C1·D1): open=true 로 렌더된 배너 div 에 ref 가 붙을 때 실측 높이를
+// 등록하고, 닫히거나 언마운트되면 0 으로 해제한다. hook 은 조기 return 보다 위에 둔다. 문구는 바꾸지 않는다.
 export default function ConsentBanner({ open, onDecide }) {
+  const bannerRef = useOverlayBanner();
   // PIPA 적합성 검토 필요 — 김경수 P0 게이트 (docs/privacy/consent-banner-copy.ko.md 와 정합)
   if (!open) return null;
 
   const decide = (ads) => onDecide({ necessary: true, ads });
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-warm-beige/40 shadow-lg p-6">
+    <div ref={bannerRef} className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-warm-beige/40 shadow-lg p-6">
       <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-start md:items-center gap-4">
         <div className="flex-1">
           <h3 className="text-charcoal font-semibold mb-1">쿠키 및 광고 동의</h3>

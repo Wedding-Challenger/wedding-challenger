@@ -1,4 +1,4 @@
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import HallThumb from './HallThumb';
 import { displayName, rentDisclosed } from '../lib/halls';
 

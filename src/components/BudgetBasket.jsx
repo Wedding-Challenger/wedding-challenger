@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { budgetFilter, displayName } from '../lib/halls';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 
 function formatWon(n) {
   if (n >= 100000000) return (n / 100000000).toFixed(1) + '억';
@@ -49,12 +49,14 @@ export default function BudgetBasket() {
     return 'bg-soft-gold';
   };
 
+  // 자체 sticky 는 두지 않는다 — 바구니+제휴를 함께 붙잡는 래퍼는 BudgetCalculator 의 aside 에 있다(계획서 B1)
   return (
-    <div className="sticky top-6">
+    <div>
       <div className={`bg-white rounded-3xl shadow-lg border-2 transition-all duration-500 ${overBudget ? 'border-red-300 shadow-red-100' : 'border-warm-beige/30'}`}>
         {/* Header */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-expanded={!isCollapsed}
           className="w-full p-5 flex items-center justify-between"
         >
           <div className="flex items-center gap-3">

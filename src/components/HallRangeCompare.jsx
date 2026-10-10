@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBudget } from '../context/BudgetContext';
+import { useBudget } from '../context/budgetContextShared';
 import { displayName, rentDisclosed } from '../lib/halls';
 
 // 목록이 길어 처음에는 이만큼만 그리고 '더 보기'로 늘린다
