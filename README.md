@@ -31,10 +31,22 @@ VITE_API_BASE_URL=https://api-dev.wedding-challenger.com npm run dev   # 개발�
 npm test
 npm run build           # production (dist/)
 npm run build:staging   # staging (dist/)
-node scripts/check-dist.mjs production   # 또는 staging — 산출물 광고·색인·API origin 검사
+node scripts/check-dist.mjs production   # 또는 staging — 산출물 광고·색인·API origin·관리 셸 검사
 ```
 
 `npm run build -- --mode staging` 처럼 mode 를 덧붙이지 않는다(두 번 지정되면 실패한다). 빌드는 매번 `dist/` 를 비우고 client·SSR·사전 렌더링에 같은 mode 를 넘긴다(`scripts/build.mjs`).
+
+## 제휴 업체(광고)와 관리 화면
+
+백엔드 계약·운영 순서는 백엔드 ADR-015(제휴 업체 슬롯별 노출과 Access 기반 운영 도구)를 따른다.
+
+- **공개 노출**: `GET /api/v1/partners?slot=HOME_MAIN|BUDGET_PARTNERS` (`src/api/partners.js`). 슬롯 on/off 는 서버 응답 `slotEnabled` 가 유일한 출처이며 FE 빌드 플래그로 켜지 않는다. 사전 렌더링·첫 렌더는 제휴 없음으로 시작하고, 하이드레이션 뒤 읽는다. 서버 `refreshAt`(최대 50초)·탭 복귀 때 다시 받고, 실패하거나 60초 넘게 못 받으면 비운다(`src/lib/partnerFeed.js`).
+- **예산 계산**: 스드메 가격 범위 다음·스냅 촬영 바로 위 「제휴 업체」(스냅을 꺼도 보임). 0건·실패·슬롯 off 면 섹션을 그리지 않는다.
+- **홈**: 제휴가 있으면 웨딩홀 줄을 「제휴 업체」 마키로 바꾸고, 없으면 지금 웨딩홀 줄(필터·12곳·더 보기) 그대로다.
+- 카드는 항상 「광고 · 제휴 업체」를 표시하고, 업체 홈페이지 새 창 링크(`rel="sponsored noopener noreferrer"`)다. 예산에 담지 않으며 가격·광고 단가를 보이지 않는다. 이미지는 배포된 `public/images/partners/` 자산만 쓴다(새 이미지는 FE 배포 필요).
+- **관리 화면**: `/admin/partners`. 빌드는 사전 렌더링하지 않는 별도 셸 `admin.html`(빈 root·noindex·광고 없음)을 만들고, `public/_redirects` 의 `/admin/* /admin 200` 한 줄과 `public/_headers` 의 `/admin`·`/admin/*`·`/admin.html` no-store·noindex 로 서빙한다(staging 은 여기에 `/*` noindex 를 덧붙인다). `npm run dev` 도 `/admin/…` 을 `admin.html` 로 보낸다. 공개 Header·Footer·광고·동의 배너는 관리 레이아웃에 없다.
+- 관리 API(`/api/v1/admin/**`, `src/api/adminPartners.js`)는 Cloudflare Access 쿠키로만 부른다(`credentials: include`). 로그인이 필요하면 화면의 「관리 API 로그인」 링크로 API 주소 `/api/v1/admin/session` 에 최상위 이동한다. 프론트 가드는 보안 경계가 아니다.
+- **검증 예외**: 로컬에 관리 인증 우회를 만들지 않으므로 관리 화면은 Vitest(mock API·reducer)와 admin 셸 빌드 검사로 PR 을 검증하고, 실제 브라우저 관리 수락은 develop 배포 뒤 보호된 dev 관리 주소에서 조율자가 한다. 마키의 hover·focus·reduced-motion·Tab·inert DOM 동작도 조율자 브라우저 수락 대상이다.
 
 ## 브랜치와 배포
 

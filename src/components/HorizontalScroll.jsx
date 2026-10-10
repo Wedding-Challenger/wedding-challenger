@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { scrollFromThumbDrag, scrollFromTrackClick, thumbGeometry } from '../lib/scrollbar';
+import { prefersReducedMotion, scrollBehavior } from '../lib/scrollMotion';
 
 // 가로로 넘치는 카드 목록. 트랙패드 없는 마우스로도 넘길 수 있게
 // 카드 아래에 항상 보이는 스크롤바(끌기·트랙 클릭)와 데스크톱 좌우 화살표(보이는 폭만큼 이동)를 둔다.
@@ -40,7 +41,8 @@ export default function HorizontalScroll({ children, gapClass = 'gap-5', label =
   const page = (direction) => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollBy({ left: direction * Math.max(el.clientWidth * 0.9, 200), behavior: 'smooth' });
+    // 움직임 줄이기 설정이면 부드러운 스크롤 없이 바로 이동
+    el.scrollBy({ left: direction * Math.max(el.clientWidth * 0.9, 200), behavior: scrollBehavior(prefersReducedMotion()) });
   };
 
   const onThumbPointerDown = (e) => {

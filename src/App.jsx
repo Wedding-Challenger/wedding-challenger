@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, NavLink, Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import ConsentBanner from './components/ConsentBanner';
 import { DEFAULT_CONSENT, STORAGE_KEY, getConsent, hasStoredConsent, setConsent as saveConsent } from './lib/consent';
@@ -14,6 +14,7 @@ import Guide from './components/Guide';
 import Checklist from './components/Checklist';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Terms from './components/Terms';
+import AdminLayout from './components/admin/AdminLayout';
 import './App.css';
 
 const navLinkClass = ({ isActive }) =>
@@ -78,7 +79,8 @@ function useRouteTitle() {
   }, [pathname]);
 }
 
-export default function App() {
+// 공개 레이아웃: Header·Footer·광고·동의 배너. 관리 화면(/admin/*)은 이 레이아웃 밖이다.
+function PublicLayout() {
   useRouteTitle();
   // 사전 렌더링 HTML 과 첫 렌더를 맞추려고 기본값(미동의·배너 닫힘)으로 시작한 뒤 저장값을 읽는다.
   const [consent, setConsent] = useState(DEFAULT_CONSENT);
@@ -121,18 +123,40 @@ export default function App() {
       <AdSenseLoader enabled={adsAllowed} />
       <Header />
       <main>
-        <Routes>
-          <Route path="/" element={<PublicLanding adsEnabled={adsAllowed} />} />
-          <Route path="/calc" element={<BudgetCalculator adsEnabled={adsAllowed} />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/guide" element={<Guide />} />
-          <Route path="/checklist" element={<Checklist />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<Terms />} />
-        </Routes>
+        <Outlet context={{ adsEnabled: adsAllowed }} />
       </main>
       <Footer adsEnabled={adsAllowed} onOpenConsent={() => setBannerOpen(true)} />
       <ConsentBanner open={bannerOpen} onDecide={handleDecide} />
     </div>
+  );
+}
+
+function Landing() {
+  const { adsEnabled: ads } = useOutletContext();
+  return <PublicLanding adsEnabled={ads} />;
+}
+
+function Calculator() {
+  const { adsEnabled: ads } = useOutletContext();
+  return <BudgetCalculator adsEnabled={ads} />;
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Landing />} />
+        <Route path="/calc" element={<Calculator />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/guide" element={<Guide />} />
+        <Route path="/checklist" element={<Checklist />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
+        {/* 없는 공개 경로도 Header·Footer 는 그대로 그린다 */}
+        <Route path="*" element={null} />
+      </Route>
+      {/* 관리 셸(admin.html)로만 들어온다. 사전 렌더링·sitemap 대상이 아니다 */}
+      <Route path="/admin/*" element={<AdminLayout />} />
+    </Routes>
   );
 }
