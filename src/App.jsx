@@ -15,6 +15,7 @@ import Checklist from './components/Checklist';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Terms from './components/Terms';
 import AdminLayout from './components/admin/AdminLayout';
+import PartnerMeasureProvider from './context/PartnerMeasureProvider';
 import './App.css';
 
 const navLinkClass = ({ isActive }) =>
@@ -79,7 +80,7 @@ function useRouteTitle() {
   }, [pathname]);
 }
 
-// 공개 레이아웃: Header·Footer·광고·동의 배너. 관리 화면(/admin/*)은 이 레이아웃 밖이다.
+// 공개 레이아웃: Header·Footer·광고·동의 배너. 관리 화면(/admin/*)은 이 레이아웃 밖이다(제휴 측정 context 도 공개 화면에만).
 function PublicLayout() {
   useRouteTitle();
   // 사전 렌더링 HTML 과 첫 렌더를 맞추려고 기본값(미동의·배너 닫힘)으로 시작한 뒤 저장값을 읽는다.
@@ -119,15 +120,17 @@ function PublicLayout() {
   const adsAllowed = adsEnabled && consent.ads;
 
   return (
-    <div className="min-h-screen">
-      <AdSenseLoader enabled={adsAllowed} />
-      <Header />
-      <main>
-        <Outlet context={{ adsEnabled: adsAllowed }} />
-      </main>
-      <Footer adsEnabled={adsAllowed} onOpenConsent={() => setBannerOpen(true)} />
-      <ConsentBanner open={bannerOpen} onDecide={handleDecide} />
-    </div>
+    <PartnerMeasureProvider>
+      <div className="min-h-screen">
+        <AdSenseLoader enabled={adsAllowed} />
+        <Header />
+        <main>
+          <Outlet context={{ adsEnabled: adsAllowed }} />
+        </main>
+        <Footer adsEnabled={adsAllowed} onOpenConsent={() => setBannerOpen(true)} />
+        <ConsentBanner open={bannerOpen} onDecide={handleDecide} />
+      </div>
+    </PartnerMeasureProvider>
   );
 }
 

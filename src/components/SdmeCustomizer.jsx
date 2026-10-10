@@ -3,7 +3,6 @@ import { useBudget } from '../context/budgetContextShared';
 import { getVendors } from '../api/vendors';
 import HorizontalScroll from './HorizontalScroll';
 import SdmeRangePicker from './SdmeRangePicker';
-import PartnerSection from './PartnerSection';
 
 function formatPrice(n) {
   if (n >= 10000) return (n / 10000).toFixed(0) + '만';
@@ -113,9 +112,6 @@ export default function SdmeCustomizer() {
           <SdmeRangePicker />
         </div>
       )}
-
-      {/* 제휴 업체(광고) — 스냅 토글과 무관하게 스냅 촬영 바로 위 */}
-      <PartnerSection />
 
       {/* Snap */}
       {includeSnap && (
