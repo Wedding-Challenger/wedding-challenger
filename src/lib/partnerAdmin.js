@@ -5,6 +5,9 @@ import { PARTNER_CATEGORIES, safeImageUrl, safeLinkUrl } from './partnerFeed';
 export const SLOTS = [
   { value: 'HOME_MAIN', label: '홈 메인 제휴 노출' },
   { value: 'BUDGET_PARTNERS', label: '예산 계산 제휴 업체' },
+  // v1.1 논리 사이드 지면(PC 우측 열·모바일 첫 본문 묶음 뒤). FE 레이아웃 플래그 on 빌드에서만 화면에 자리가 생긴다
+  { value: 'GUIDE_SIDEBAR', label: '가이드 사이드 제휴' },
+  { value: 'CHECKLIST_SIDEBAR', label: '체크리스트 사이드 제휴' },
 ];
 
 // 업종 목록은 공개 카드와 같이 쓴다(새 PartnerCategory, 계획서 §3.1)

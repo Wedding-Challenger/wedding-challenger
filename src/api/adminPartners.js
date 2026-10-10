@@ -21,7 +21,7 @@ export class AdminApiError extends Error {
 
 const KIND_BY_STATUS = { 400: 'validation', 401: 'login', 403: 'forbidden', 404: 'notFound', 409: 'conflict' };
 
-async function adminRequest(path, { method = 'GET', body } = {}) {
+export async function adminRequest(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json', 'X-WC-Admin-Request': '1' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let res;
@@ -48,6 +48,31 @@ async function adminRequest(path, { method = 'GET', body } = {}) {
     throw new AdminApiError(KIND_BY_STATUS[res.status] ?? 'server', res.status, json.message, json.code);
   }
   return json.result;
+}
+
+// 파일(CSV) 내려받기: 같은 Access 쿠키·redirect 수동·표지 헤더. 2xx 인데 요청한 형식이 아니면(로그인 HTML) '로그인 필요'.
+// 오류 응답은 JSON 본문이면 그 분류·메시지를 쓴다. 성공하면 Blob.
+export async function adminDownload(path, accept) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}${ADMIN}${path}`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'manual',
+      headers: { Accept: accept, 'X-WC-Admin-Request': '1' },
+    });
+  } catch (err) {
+    throw new AdminApiError('network', 0, err.message);
+  }
+  if (res.type === 'opaqueredirect' || res.status === 0) throw new AdminApiError('login', res.status);
+  const type = res.headers?.get?.('content-type') ?? '';
+  if (!res.ok) {
+    const json = type.includes('json') ? await res.json().catch(() => null) : null;
+    throw new AdminApiError(KIND_BY_STATUS[res.status] ?? 'server', res.status, json?.message, json?.code);
+  }
+  if (!type.toLowerCase().startsWith(accept)) throw new AdminApiError('login', res.status);
+  return res.blob();
 }
 
 // 목록 응답은 배열 또는 페이지({ items, … }) 둘 다 받는다
