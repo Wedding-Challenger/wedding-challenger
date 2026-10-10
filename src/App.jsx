@@ -25,7 +25,7 @@ const navLinkClass = ({ isActive }) =>
     isActive ? 'bg-white text-charcoal shadow-sm' : 'text-charcoal/50 hover:text-charcoal'
   }`;
 
-function Header() {
+export function Header() {
   // sticky Header 가 가린 화면 위쪽은 제휴 노출 판정에서 뺀다(실측 높이 → IntersectionObserver rootMargin 위쪽)
   const headerRef = useOverlayHeader();
   return (

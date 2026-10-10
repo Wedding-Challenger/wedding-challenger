@@ -55,6 +55,47 @@ export function overlayRootMargin({ headerHeight = 0, bannerHeight = 0 }, viewpo
 
 export const bannerRootMargin = (bannerHeight, viewportHeight) => overlayRootMargin({ bannerHeight }, viewportHeight);
 
+// 슬롯 측정 IntersectionObserver 옵션(usePartnerMetrics 가 provider 의 Header·배너 높이와 뷰포트 높이로 부른다).
+// Header+배너 합산이 뷰포트 이상이거나 뷰포트를 아직 못 쟀으면 null — observer 를 만들지 않아 노출이 0 이다
+// (높이 0 root 의 경계 교차를 브라우저마다 다르게 세지 않게).
+export const OBSERVER_THRESHOLDS = [0, 0.25, 0.5, 0.75, 1];
+
+export function buildObserverOptions(headerHeight, bannerHeight, viewportHeight) {
+  const vh = Math.max(0, Math.floor(viewportHeight || 0));
+  const covered = Math.max(0, Math.ceil(headerHeight || 0)) + Math.max(0, Math.ceil(bannerHeight || 0));
+  if (!vh || covered >= vh) return null;
+  return { rootMargin: overlayRootMargin({ headerHeight, bannerHeight }, vh), threshold: OBSERVER_THRESHOLDS };
+}
+
+// 옵션이 바뀔 때마다 새로 만드는 슬롯 observer. 만들 때 tracker 의 비율·연속 시간을 버려 연속 1초를 처음부터 잰다.
+// elements 는 지금 붙은 카드 DOM → placementId Map(이후 붙는 카드는 observe 로). 옵션이 없거나 IntersectionObserver 가
+// 없으면 아무것도 관찰하지 않는다. onChange 는 비율이 바뀔 때마다(타이머 재예약).
+const NO_OBSERVER = { observe() {}, unobserve() {}, disconnect() {} };
+
+export function createSlotObserver({ options, tracker, elements, onChange, IntersectionObserverImpl, now = () => performance.now() }) {
+  tracker.reset();
+  if (!options || !IntersectionObserverImpl) {
+    onChange();
+    return NO_OBSERVER;
+  }
+  const io = new IntersectionObserverImpl((entries) => {
+    const t = now();
+    for (const entry of entries) {
+      const placementId = elements.get(entry.target);
+      if (placementId == null) continue;
+      tracker.observe(placementId, entry.target, entry.isIntersecting ? entry.intersectionRatio : 0, t);
+    }
+    onChange();
+  }, options);
+  elements.forEach((_, el) => io.observe(el));
+  onChange();
+  return {
+    observe: (el) => io.observe(el),
+    unobserve: (el) => io.unobserve(el),
+    disconnect: () => io.disconnect(),
+  };
+}
+
 // 배너·Header 요소의 ref 콜백 대상. attach(node) 는 붙을 때, attach(null) 은 떨어질 때(닫힘·언마운트) 부른다.
 export function createBannerObserver({ onHeight, ResizeObserverImpl }) {
   let observer = null;

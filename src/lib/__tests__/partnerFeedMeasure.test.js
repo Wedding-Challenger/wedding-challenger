@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPartnerFeedController } from '../partnerFeedController';
+import { SEND_PREPARE_TIMEOUT_MS, createPartnerFeedController } from '../partnerFeedController';
 
 // 측정 전송 전 토큰 재조회(계획서 B4·C11): 남은 시간 11초 이하·hidden 복귀 뒤에는 재조회가 끝난 다음에만 보낸다.
 // 재조회 실패·placement 사라짐·정지면 측정만 포기(null). 순환 고정(H1)은 주입한 페이지뷰 저장소에 남는다.
@@ -214,5 +214,70 @@ describe('제휴 피드 컨트롤러 — 추월된 재조회', () => {
     expect(calls).toHaveLength(2);
     calls[1].resolve(result([item(1, { token: 'n1' }), item(2, { token: 'n2' })]));
     await expect(Promise.all([p1, p2])).resolves.toEqual(['n1', 'n2']);
+  });
+});
+
+// 리뷰 2판 지적 1: 대기는 「요청 세대 변경·최신 응답 반영·stop」 신호와 전송 준비 제한시간으로 풀린다.
+// 낡은 요청 A 가 끝나지 않아도 최신 B 가 반영되면 진행하고, 응답 없는 stop·제한시간 초과면 보내지 않는다(null).
+describe('제휴 피드 컨트롤러 — 대기 해제', () => {
+  it('newerAppliedWhileOwnNeverSettles — B 만 반영되고 A 는 끝나지 않아도 B 의 토큰', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1)]));
+    await flush();
+    c.markHidden();
+    const p = c.prepareSend(1); // 재조회 A — 끝까지 응답 없음
+    await flush();
+    c.refresh(); // B
+    calls[2].resolve(result([item(1, { token: 'tok-B' })]));
+    await flush();
+    let value;
+    p.then((v) => { value = v; });
+    await flush();
+    expect(value).toBe('tok-B');
+  });
+
+  it('stopWithoutAnyResponseWakes — 응답이 하나도 없는데 stop 하면 바로 null', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1)]));
+    await flush();
+    c.markHidden();
+    const p = c.prepareSend(1);
+    await flush();
+    let value = 'pending';
+    p.then((v) => { value = v; });
+    c.stop();
+    await flush();
+    expect(value).toBeNull();
+  });
+
+  it('prepareTimeoutGivesUp — 재조회 응답이 제한시간(5초) 안에 없으면 null, 늦은 응답의 토큰도 쓰지 않는다', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1)]));
+    await flush();
+    c.markHidden();
+    const p = c.prepareSend(1);
+    await flush();
+    let value = 'pending';
+    p.then((v) => { value = v; });
+    await vi.advanceTimersByTimeAsync(SEND_PREPARE_TIMEOUT_MS - 1);
+    expect(value).toBe('pending');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(value).toBeNull();
+    calls[1].resolve(result([item(1, { token: 'tok-late' })]));
+    await flush();
+    expect(value).toBeNull();
+  });
+
+  it('timeoutClearedAfterSuccess — 정상 완료 뒤에는 제한시간 타이머가 남지 않는다', async () => {
+    const c = setup();
+    c.start();
+    calls[0].resolve(result([item(1)]));
+    await flush();
+    const before = vi.getTimerCount();
+    await expect(c.prepareSend(1)).resolves.toBe('tok-1');
+    expect(vi.getTimerCount()).toBe(before);
   });
 });

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  bannerRootMargin, createBannerObserver, initialOverlay, overlayReducer, overlayRootMargin, overlaySummary,
+  bannerRootMargin, buildObserverOptions, createBannerObserver, createSlotObserver, initialOverlay, overlayReducer, overlayRootMargin,
+  overlaySummary,
 } from '../partnerOverlay';
+import { createImpressionTracker } from '../partnerMetrics';
 
 // 가림 신호(계획서 §3.2 C8·D1): Onboarding 은 마운트/언마운트로 전체 화면 모달을 등록·해제하고,
 // ConsentBanner 는 open=true 로 렌더된 배너 div ref 가 붙을 때 ResizeObserver 높이를 등록, 떨어지면 0 으로 해제한다.
@@ -111,5 +113,93 @@ describe('상단 Header 가림', () => {
     expect(overlayRootMargin({ headerHeight: 73, bannerHeight: 0 }, 800)).toBe('-73px 0px 0px 0px');
     expect(overlayRootMargin({ headerHeight: 73, bannerHeight: 132.4 }, 800)).toBe('-73px 0px -133px 0px');
     expect(overlayRootMargin({ headerHeight: 500, bannerHeight: 500 }, 800)).toBe('-500px 0px -300px 0px');
+  });
+});
+
+// 리뷰 2판 지적 3: usePartnerMetrics 는 observer 옵션을 buildObserverOptions(Header, 배너, 뷰포트) 로 만들고,
+// observer 생성·재생성(연속 시간 초기화)을 createSlotObserver 에 맡긴다. 훅 연결은 components/__tests__/partnerMeasureWiring.test.jsx.
+describe('observer 조립', () => {
+  const THRESHOLDS = [0, 0.25, 0.5, 0.75, 1];
+
+  it('buildObserverOptionsFromOverlay — Header 는 위, 배너는 아래 rootMargin', () => {
+    expect(buildObserverOptions(73, 132.4, 800)).toEqual({ rootMargin: '-73px 0px -133px 0px', threshold: THRESHOLDS });
+    expect(buildObserverOptions(0, 0, 800)).toEqual({ rootMargin: '0px 0px 0px 0px', threshold: THRESHOLDS });
+  });
+
+  it.each([
+    ['합산 = 뷰포트', 500, 300, 800],
+    ['합산 > 뷰포트', 500, 500, 800],
+    ['Header 만으로 덮음', 800, 0, 800],
+    ['뷰포트 미측정', 64, 0, 0],
+  ])('fullyCoveredMeansNoObserver — %s 이면 옵션 없음(observer 를 만들지 않아 노출 0)', (_, h, b, vh) => {
+    expect(buildObserverOptions(h, b, vh)).toBeNull();
+  });
+
+  function fakeIO() {
+    const instances = [];
+    class IO {
+      constructor(cb, options) {
+        this.cb = cb;
+        this.options = options;
+        this.targets = new Set();
+        this.disconnected = false;
+        instances.push(this);
+      }
+      observe(el) { this.targets.add(el); }
+      unobserve(el) { this.targets.delete(el); }
+      disconnect() { this.disconnected = true; this.targets.clear(); }
+    }
+    return { IO, instances };
+  }
+
+  function rig() {
+    const tracker = createImpressionTracker();
+    const elements = new Map([[{ id: 'card-1' }, 1]]);
+    const [el] = elements.keys();
+    const onChange = vi.fn();
+    let t = 0;
+    const { IO, instances } = fakeIO();
+    const make = (options) => createSlotObserver({ options, tracker, elements, onChange, IntersectionObserverImpl: IO, now: () => t });
+    return { tracker, el, onChange, instances, make, tick: (ms) => { t += ms; return t; } };
+  }
+
+  it('createsObserverWithOptions — 옵션 그대로 observer 를 만들고 이미 붙은 카드를 관찰, 항목을 tracker 에 넘긴다', () => {
+    const r = rig();
+    const options = buildObserverOptions(73, 0, 800);
+    r.make(options);
+    expect(r.instances).toHaveLength(1);
+    expect(r.instances[0].options).toBe(options);
+    expect([...r.instances[0].targets]).toEqual([r.el]);
+    r.instances[0].cb([{ target: r.el, isIntersecting: true, intersectionRatio: 1 }]);
+    expect(r.onChange).toHaveBeenCalled();
+    expect(r.tracker.due(r.tick(1000))).toEqual([1]);
+  });
+
+  it('rebuildRestartsContinuousSecond — 가림 높이가 바뀌어 다시 만들면 연속 1초를 처음부터 잰다', () => {
+    const r = rig();
+    const first = r.make(buildObserverOptions(0, 0, 800));
+    r.instances[0].cb([{ target: r.el, isIntersecting: true, intersectionRatio: 1 }]);
+    r.tick(600);
+    first.disconnect();
+    expect(r.instances[0].disconnected).toBe(true);
+    r.make(buildObserverOptions(73, 0, 800)); // Header 등록
+    expect(r.tracker.due(r.tick(500))).toEqual([]); // 600+500 이어도 세지 않는다
+    r.instances[1].cb([{ target: r.el, isIntersecting: true, intersectionRatio: 1 }]);
+    expect(r.tracker.due(r.tick(999))).toEqual([]);
+    expect(r.tracker.due(r.tick(1))).toEqual([1]);
+  });
+
+  it('noOptionsNoObserverNoImpression — 가림 합산이 뷰포트 이상이면 observer 없이 초기화만, 노출 0', () => {
+    const r = rig();
+    r.make(buildObserverOptions(0, 0, 800));
+    r.instances[0].cb([{ target: r.el, isIntersecting: true, intersectionRatio: 1 }]);
+    r.tick(600);
+    const none = r.make(buildObserverOptions(500, 300, 800));
+    expect(r.instances).toHaveLength(1);
+    none.observe({ id: 'late' });
+    none.unobserve({ id: 'late' });
+    none.disconnect();
+    expect(r.tracker.due(r.tick(10000))).toEqual([]);
+    expect(r.tracker.nextDueAt()).toBeNull();
   });
 });

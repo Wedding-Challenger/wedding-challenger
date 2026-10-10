@@ -11,6 +11,10 @@ import { tokenNeedsRefresh } from './partnerMetrics';
 // 화면에 내보내는 목록은 업종 순환(pickRotation)으로 그룹당 1개다. 그룹별 고정은 주입한 페이지뷰 저장소(pins)에 둔다.
 // 측정 전송 전 토큰 준비(prepareSend): hidden 복귀 뒤·토큰 남은 시간 11초 이하면 재조회가 끝난 다음 그 item 의 토큰을 준다.
 // 재조회가 다른 재조회에 추월되면 최신 세대가 실제 반영될 때까지 기다린 뒤 hidden·토큰 신선도를 다시 검사한다.
+// 기다림은 특정 요청 promise 가 아니라 「요청 세대 변경·최신 응답 반영·stop」 신호로 깬다(추월당한 낡은 요청이 끝나지 않아도
+// 최신 응답이 반영되면 진행). 전송 준비 제한시간(SEND_PREPARE_TIMEOUT_MS)을 넘기거나 stop 이면 보내지 않는다(null —
+// 측정 손실은 허용하고 낡은 토큰은 보내지 않는다).
+export const SEND_PREPARE_TIMEOUT_MS = 5000;
 export const MAX_TIMER_DELAY = 2 ** 31 - 2;
 export const safeDelay = (ms) => Math.min(Math.max(ms, 0), MAX_TIMER_DELAY);
 
@@ -25,9 +29,22 @@ export function createPartnerFeedController({ load, onUpdate, pins = memoryPins(
   let stopped = false;
   let expiryTimer = null;
   let refetchTimer = null;
-  let inflight = null; // 가장 최근 요청이 반영될 때까지의 promise
+  let appliedSeq = 0; // 마지막으로 반영된 응답의 요청 세대(seq 와 같으면 기다릴 요청이 없다)
   let hiddenEpoch = 0; // markHidden 마다 +1
   let freshEpoch = 0; // 마지막으로 반영된 응답을 요청할 때의 hiddenEpoch
+
+  // 대기 신호: 세대 변경·응답 반영·stop 때마다 지금 신호를 깨우고 새로 만든다
+  let wake;
+  let changed;
+  const resetSignal = () => {
+    changed = new Promise((resolve) => { wake = resolve; });
+  };
+  resetSignal();
+  const notify = () => {
+    const resolve = wake;
+    resetSignal();
+    resolve();
+  };
 
   const emit = () => {
     const { items, pins: next } = pickRotation(visibleItems(feed, Date.now()), pins.read());
@@ -61,10 +78,12 @@ export function createPartnerFeedController({ load, onUpdate, pins = memoryPins(
     }
     if (stopped || id !== seq) return;
     feed = next;
+    appliedSeq = id;
     if (next.ok) freshEpoch = epoch;
     emit();
     scheduleExpiry();
     refetchTimer = setTimeout(refresh, safeDelay(refetchAt(feed) - Date.now()));
+    notify();
   }
 
   function refresh() {
@@ -72,10 +91,8 @@ export function createPartnerFeedController({ load, onUpdate, pins = memoryPins(
     const id = ++seq;
     clearTimeout(refetchTimer);
     refetchTimer = null;
-    const promise = run(id, hiddenEpoch).finally(() => {
-      if (inflight === promise) inflight = null;
-    });
-    inflight = promise;
+    const promise = run(id, hiddenEpoch);
+    notify();
     return promise;
   }
 
@@ -84,29 +101,37 @@ export function createPartnerFeedController({ load, onUpdate, pins = memoryPins(
     return feed ? visibleItems(feed, Date.now()).find((i) => i.placementId === placementId) ?? null : null;
   }
 
-  // 진행 중인 요청이 없어질 때까지 기다린다. 기다리는 동안 더 새 요청(탭 복귀·focus)이 시작되면 그것까지 기다린다
-  async function settle() {
-    while (inflight && !stopped) await inflight;
-  }
-
   const isStale = (placementId) => freshEpoch < hiddenEpoch || tokenNeedsRefresh(currentItem(placementId), Date.now());
 
   async function prepareSend(placementId) {
-    let refreshed = false;
-    for (;;) {
-      // 기다릴 요청이 없으면 곧바로 판정한다(동시에 부른 전송이 같은 재조회 하나를 함께 기다리게)
-      if (inflight) await settle();
-      if (stopped) return null;
-      if (!isStale(placementId)) break;
-      // 직접 시작한(또는 그 뒤 추월한) 최신 재조회가 반영됐는데도 hidden 뒤 미갱신·잔여 11초 이하면 측정만 포기
-      if (refreshed) return null;
-      refreshed = true;
-      refresh();
+    let timedOut = false;
+    let timer;
+    const expired = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        resolve();
+      }, SEND_PREPARE_TIMEOUT_MS);
+    });
+    try {
+      let refreshed = false;
+      for (;;) {
+        // 최신 세대가 반영될 때까지(그 사이 더 새 요청이 시작되면 그것까지) 기다린다. 기다릴 요청이 없으면 곧바로 판정한다
+        // (동시에 부른 전송이 같은 재조회 하나를 함께 기다리게)
+        while (appliedSeq !== seq && !stopped && !timedOut) await Promise.race([changed, expired]);
+        if (stopped || timedOut) return null;
+        if (!isStale(placementId)) break;
+        // 직접 시작한(또는 그 뒤 추월한) 최신 재조회가 반영됐는데도 hidden 뒤 미갱신·잔여 11초 이하면 측정만 포기
+        if (refreshed) return null;
+        refreshed = true;
+        refresh();
+      }
+      const item = currentItem(placementId);
+      if (!item?.measurementToken) return null;
+      if (item.measurementTokenExpiresAt != null && item.measurementTokenExpiresAt <= Date.now()) return null;
+      return item.measurementToken;
+    } finally {
+      clearTimeout(timer);
     }
-    const item = currentItem(placementId);
-    if (!item?.measurementToken) return null;
-    if (item.measurementTokenExpiresAt != null && item.measurementTokenExpiresAt <= Date.now()) return null;
-    return item.measurementToken;
   }
 
   return {
@@ -123,6 +148,7 @@ export function createPartnerFeedController({ load, onUpdate, pins = memoryPins(
       clearTimeout(refetchTimer);
       expiryTimer = null;
       refetchTimer = null;
+      notify();
     },
   };
 }
